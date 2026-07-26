@@ -65,7 +65,7 @@ jobs:
         working-directory: external/special-relativity-web
         run: |
           set -o pipefail
-          cargo test --workspace 2>&1 | tee ../../results/nakayama_audit/upstream_cargo_test.log
+          cargo test --workspace --target x86_64-unknown-linux-gnu 2>&1 | tee ../../results/nakayama_audit/upstream_cargo_test.log
 
       - name: Upstream WASM cargo check
         id: cargo_check_wasm
