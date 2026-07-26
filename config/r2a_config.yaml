@@ -1,0 +1,70 @@
+experiment_id: IAT-Phase2C-r2A
+version: "1.0.0"
+status: confirmatory
+scope: stable linear-Gaussian delay toy models
+
+simulation:
+  a: 0.60
+  sigma_process: 0.05
+  sigma_observation: 0.05
+  burnin: 200
+  effective_length: 512
+
+scenarios:
+  - id: scenario_A
+    true_lags: {3: 0.20}
+  - id: scenario_B
+    true_lags: {5: 0.20}
+  - id: scenario_C
+    true_lags: {2: 0.14, 5: 0.14}
+  - id: scenario_D
+    true_lags: {8: 0.20}
+  - id: scenario_E
+    true_lags: {}
+
+sample_sizes:
+  train: 80
+  finite_train: 40
+  inner: 20
+  outer: 20
+  diagnostic: 20
+  test_per_cell: 40
+
+interventions:
+  train_kinds: [sine, prbs]
+  train_amplitudes: [0.2, 0.4, 0.8, 1.0]
+  test_kinds: [step, pulse, chirp]
+  test_amplitudes: [0.4, 0.8]
+
+model:
+  candidate_max_lag: 6
+  diagnostic_max_lag: 10
+  max_selected_lags: 2
+  alphas: [0.0, 0.000001, 0.0001, 0.01, 0.1, 1.0, 10.0]
+  parsimony_relative_tolerance: 0.002
+
+diagnostic:
+  permutation_reps: 199
+  alpha: 0.01
+
+shuffle:
+  conditional_bins: 5
+
+statistics:
+  bootstrap_reps: 4000
+  ci_level: 0.99
+  bootstrap_seed: 20260726
+
+gates:
+  recovery_ci_lower: 0.90
+  delay_noninferiority_upper: 1.05
+  out_support_detection_ci_lower: 0.90
+  null_false_positive_ci_upper: 0.10
+  shuffle_ratio_ci_lower: 1.10
+  finite_recovery_ci_lower: 0.80
+
+claims_not_made:
+  - real-data generalization
+  - nonlinear-system generalization
+  - quantum-process connection
+  - new physical law
