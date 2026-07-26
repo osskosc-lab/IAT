@@ -1,0 +1,16 @@
+{
+  "experiment_id": "IAT-Phase2C-r2A",
+  "status": "PASS",
+  "workflow_run_id": 30186022296,
+  "workflow_run_number": 10,
+  "head_sha": "dedd8b1ce797da253b369b58006783f1436de312",
+  "artifact_id": 8627070510,
+  "artifact_name": "IAT-Phase2C-r2A-results",
+  "artifact_digest": "sha256:8e7ced6f3d192a375580c03d824f47b0aa700fb8bdf2a885dc57d9b13bbbf3c3",
+  "artifact_retention_until": "2026-10-24T03:20:56Z",
+  "seed_count": 30,
+  "scenario_count": 5,
+  "bootstrap_repetitions": 4000,
+  "confidence_level": 0.99,
+  "all_gates_pass": true
+}
