@@ -1,0 +1,9 @@
+gate,name,estimate,ci_low,ci_high,criterion,pass
+Gate 0,Implementation integrity,1.0,,,all integrity checks PASS,True
+Gate 1,In-support exact recovery,1.0,1.0,1.0,99% CI lower > 0.9,True
+Gate 2,Adaptive / DelayARX non-inferiority,0.9999316511205395,0.9999049293281166,0.999953967706439,99% CI upper < 1.05,True
+Gate 3,Out-of-support detection sensitivity,1.0,1.0,1.0,99% CI lower > 0.9,True
+Gate 4,Null false-positive rate,0.0,0.0,0.0,99% CI upper < 0.1,True
+Gate 5,Temporal-order mechanism,2.218652567491863,2.207393605603593,2.2289132563658236,99% CI lower > 1.1,True
+Gate 6a,Finite-sample exact recovery,1.0,1.0,1.0,99% CI lower > 0.8,True
+Gate 6b,Finite-sample / DelayARX non-inferiority,0.9999217768081734,0.9999039588189154,0.99994064899759,99% CI upper < 1.05,True
