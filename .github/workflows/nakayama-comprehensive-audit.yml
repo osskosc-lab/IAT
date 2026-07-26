@@ -1,0 +1,130 @@
+name: Nakayama PLC Comprehensive Falsification Audit
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/nakayama_comprehensive_audit.py"
+      - "tests/test_nakayama_comprehensive_audit.py"
+      - ".github/workflows/nakayama-comprehensive-audit.yml"
+      - "requirements.txt"
+  push:
+    branches: [main]
+    paths:
+      - "src/nakayama_comprehensive_audit.py"
+      - "tests/test_nakayama_comprehensive_audit.py"
+      - ".github/workflows/nakayama-comprehensive-audit.yml"
+      - "requirements.txt"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nakayama-plc-comprehensive-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MPLBACKEND: Agg
+      PYTHONHASHSEED: "0"
+
+    steps:
+      - name: Checkout IAT audit repository
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned public simulator
+        uses: actions/checkout@v4
+        with:
+          repository: sogebu/special-relativity-web
+          ref: 7fc8cb1e0aeb76eb90a475cd0f2ee64aee321033
+          path: external/special-relativity-web
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Upstream Cargo tests
+        id: cargo_test
+        continue-on-error: true
+        working-directory: external/special-relativity-web
+        run: cargo test --workspace
+
+      - name: Upstream WASM cargo check
+        id: cargo_check_wasm
+        continue-on-error: true
+        working-directory: external/special-relativity-web
+        run: cargo check --workspace --target wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        id: install_wasm_pack
+        continue-on-error: true
+        run: cargo install wasm-pack --version 0.13.1 --locked
+
+      - name: Build upstream WebAssembly package
+        id: wasm_pack_build
+        if: steps.install_wasm_pack.outcome == 'success'
+        continue-on-error: true
+        working-directory: external/special-relativity-web
+        run: wasm-pack build --release
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.5.1"
+          cache: npm
+          cache-dependency-path: external/special-relativity-web/package-lock.json
+
+      - name: Build upstream web application
+        id: web_build
+        if: steps.wasm_pack_build.outcome == 'success'
+        continue-on-error: true
+        working-directory: external/special-relativity-web
+        run: npm ci && npm run build
+
+      - name: Audit unit tests
+        run: pytest -q tests/test_nakayama_comprehensive_audit.py
+
+      - name: Run comprehensive scientific audit
+        env:
+          UPSTREAM_CARGO_TEST: ${{ steps.cargo_test.outcome }}
+          UPSTREAM_CARGO_CHECK_WASM: ${{ steps.cargo_check_wasm.outcome }}
+          UPSTREAM_WASM_PACK_BUILD: ${{ steps.wasm_pack_build.outcome }}
+          UPSTREAM_WEB_BUILD: ${{ steps.web_build.outcome }}
+        run: >-
+          python src/nakayama_comprehensive_audit.py
+          --simulator-root external/special-relativity-web
+          --output-dir results/nakayama_audit
+          --seed 20260726
+          --lorentz-trials 100
+
+      - name: Publish audit summary
+        if: always()
+        run: |
+          if [ -f results/nakayama_audit/summary.md ]; then
+            cat results/nakayama_audit/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Audit summary was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: IAT-Nakayama-Comprehensive-Audit
+          path: |
+            results/nakayama_audit/
+          if-no-files-found: warn
+          retention-days: 90
