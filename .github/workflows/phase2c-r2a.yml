@@ -10,12 +10,20 @@ on:
       - "tests/**"
       - "requirements.txt"
       - ".github/workflows/phase2c-r2a.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "config/**"
+      - "tests/**"
+      - "requirements.txt"
+      - ".github/workflows/phase2c-r2a.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: iat-phase2c-r2a
+  group: iat-phase2c-r2a-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
