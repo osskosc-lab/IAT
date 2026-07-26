@@ -49,7 +49,7 @@ jobs:
 
       - name: Verify frozen hashes
         run: |
-          sha256sum config/r2a_config.yaml config/r2a_confirmatory_seeds.json requirements.txt src/check_freeze.py src/r2a_experiment.py src/r2a_validator.py tests/test_r2a.py
+          sha256sum config/r2a_config.yaml config/r2a_confirmatory_seeds.json requirements.txt src/check_freeze.py src/r2a_experiment.py src/r2a_validator.py tests/test_r2a.py | tee actual_hashes.txt
           python src/check_freeze.py
 
       - name: Unit tests
@@ -81,6 +81,7 @@ jobs:
         with:
           name: IAT-Phase2C-r2A-results
           path: |
+            actual_hashes.txt
             results/smoke/
             results/r2a/
             config/frozen_manifest.json
