@@ -1,0 +1,83 @@
+name: IAT Phase 2C-r2A Confirmatory Experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "config/**"
+      - "tests/**"
+      - "requirements.txt"
+      - ".github/workflows/phase2c-r2a.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iat-phase2c-r2a
+  cancel-in-progress: false
+
+jobs:
+  confirmatory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MPLBACKEND: Agg
+      PYTHONHASHSEED: "0"
+
+    steps:
+      - name: Checkout frozen repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Verify frozen hashes
+        run: python src/check_freeze.py
+
+      - name: Unit tests
+        run: pytest -q
+
+      - name: Smoke experiment
+        run: python src/r2a_experiment.py --mode smoke
+
+      - name: Confirmatory 30-seed experiment
+        run: python src/r2a_experiment.py --mode confirm
+
+      - name: Independent validation
+        id: validate
+        continue-on-error: true
+        run: python src/r2a_validator.py
+
+      - name: Publish summary
+        if: always()
+        run: |
+          if [ -f results/r2a/summary.md ]; then
+            cat results/r2a/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Validation summary was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload scientific artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: IAT-Phase2C-r2A-results
+          path: |
+            results/smoke/
+            results/r2a/
+            config/frozen_manifest.json
+            config/r2a_confirmatory_seeds.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Enforce Gate result
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
