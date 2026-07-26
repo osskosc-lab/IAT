@@ -94,10 +94,18 @@ jobs:
         working-directory: external/special-relativity-web
         run: npm ci && npm run build
 
+      - name: Prepare audit output directory
+        run: mkdir -p results/nakayama_audit
+
       - name: Audit unit tests
-        run: pytest -q tests/test_nakayama_comprehensive_audit.py
+        id: audit_tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pytest -vv tests/test_nakayama_comprehensive_audit.py 2>&1 | tee results/nakayama_audit/pytest.log
 
       - name: Run comprehensive scientific audit
+        if: always()
         env:
           UPSTREAM_CARGO_TEST: ${{ steps.cargo_test.outcome }}
           UPSTREAM_CARGO_CHECK_WASM: ${{ steps.cargo_check_wasm.outcome }}
@@ -118,6 +126,11 @@ jobs:
           else
             echo "Audit summary was not generated." >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ "${{ steps.audit_tests.outcome }}" != "success" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Unit-test diagnostic" >> "$GITHUB_STEP_SUMMARY"
+            echo "Audit unit tests failed; inspect pytest.log in the artifact." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload audit artifacts
         if: always()
@@ -128,3 +141,7 @@ jobs:
             results/nakayama_audit/
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Enforce audit unit-test result
+        if: steps.audit_tests.outcome == 'failure'
+        run: exit 1
