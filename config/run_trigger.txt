@@ -1,1 +1,1 @@
-Phase 2C-r2A confirmatory run requested: 2026-07-26
+Phase 2C-r2A confirmatory pull-request run requested: 2026-07-26
