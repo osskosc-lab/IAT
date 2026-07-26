@@ -42,6 +42,9 @@ jobs:
           ref: 7fc8cb1e0aeb76eb90a475cd0f2ee64aee321033
           path: external/special-relativity-web
 
+      - name: Prepare audit output directory
+        run: mkdir -p results/nakayama_audit
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -60,25 +63,33 @@ jobs:
         id: cargo_test
         continue-on-error: true
         working-directory: external/special-relativity-web
-        run: cargo test --workspace
+        run: |
+          set -o pipefail
+          cargo test --workspace 2>&1 | tee ../../results/nakayama_audit/upstream_cargo_test.log
 
       - name: Upstream WASM cargo check
         id: cargo_check_wasm
         continue-on-error: true
         working-directory: external/special-relativity-web
-        run: cargo check --workspace --target wasm32-unknown-unknown
+        run: |
+          set -o pipefail
+          cargo check --workspace --target wasm32-unknown-unknown 2>&1 | tee ../../results/nakayama_audit/upstream_wasm_check.log
 
       - name: Install wasm-pack
         id: install_wasm_pack
         continue-on-error: true
-        run: cargo install wasm-pack --version 0.13.1 --locked
+        run: |
+          set -o pipefail
+          cargo install wasm-pack --version 0.13.1 --locked 2>&1 | tee results/nakayama_audit/install_wasm_pack.log
 
       - name: Build upstream WebAssembly package
         id: wasm_pack_build
         if: steps.install_wasm_pack.outcome == 'success'
         continue-on-error: true
         working-directory: external/special-relativity-web
-        run: wasm-pack build --release
+        run: |
+          set -o pipefail
+          wasm-pack build --release 2>&1 | tee ../../results/nakayama_audit/upstream_wasm_build.log
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -92,17 +103,16 @@ jobs:
         if: steps.wasm_pack_build.outcome == 'success'
         continue-on-error: true
         working-directory: external/special-relativity-web
-        run: npm ci && npm run build
-
-      - name: Prepare audit output directory
-        run: mkdir -p results/nakayama_audit
+        run: |
+          set -o pipefail
+          (npm ci && npm run build) 2>&1 | tee ../../results/nakayama_audit/upstream_web_build.log
 
       - name: Audit unit tests
         id: audit_tests
         continue-on-error: true
         run: |
           set -o pipefail
-          pytest -vv tests/test_nakayama_comprehensive_audit.py 2>&1 | tee results/nakayama_audit/pytest.log
+          python -m pytest -vv tests/test_nakayama_comprehensive_audit.py 2>&1 | tee results/nakayama_audit/pytest.log
 
       - name: Run comprehensive scientific audit
         if: always()
