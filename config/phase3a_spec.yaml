@@ -1,0 +1,127 @@
+phase: "3A"
+name: "Observable-Only History-Conditioned Work Experiment"
+status: "PILOT_OPEN"
+confirmatory_locked: false
+scientific_boundary: >-
+  Tests whether stimulus order adds predictive information for a common probe response
+  in observable-only passive RC systems. It does not claim a new conserved energy,
+  superiority over standard system identification, or a new physical law.
+
+primary_claim:
+  target: "asinh(probe_work_j / 0.001)"
+  metric: "RMSE ratio M_H / M_0"
+  support_criterion: "99% CI upper < 0.90"
+  statistical_unit: "device"
+
+stimuli:
+  orders: [ABC, ACB, BAC, BCA, CAB, CBA]
+  primary_pairs: [[ABC, BAC], [ACB, CAB], [BCA, CBA]]
+  repetitions_per_order: 8
+  pilot_devices: 8
+  confirmatory_devices: 30
+  probe:
+    sensitive_band: "pilot_selected_and_frozen"
+    insensitive_band: "pilot_selected_and_frozen"
+
+observable_state_gate:
+  abs_pre_voltage_v_max: 0.001
+  abs_pre_current_fraction_full_scale_max: 0.001
+  abs_pre_voltage_slope_v_per_s_max: 0.0002
+  abs_pre_temperature_delta_c_max: 0.2
+  max_device_exclusion_fraction: 0.10
+  pre_window_s: 1.0
+
+outcome:
+  transform: "asinh"
+  scale_j: 0.001
+  primary: "probe_work_j"
+  secondary:
+    - probe_max_abs_current_a
+    - probe_end_voltage_v
+    - probe_relaxation_tau_s
+
+models:
+  current_state:
+    name: "M0"
+    features:
+      - pre_voltage_v
+      - pre_current_a
+      - pre_voltage_slope_v_per_s
+      - pre_temperature_delta_c
+      - last_stimulus
+      - total_stimulus_abs
+      - conditioning_work_j
+  history:
+    name: "MH"
+    base: "M0"
+    frozen_history_features:
+      - pos_A
+      - pos_B
+      - pos_C
+      - A_before_B
+      - B_before_A
+      - A_before_C
+      - C_before_A
+      - B_before_C
+      - C_before_B
+  strong_baselines:
+    names:
+      - output_only_DelayARX
+      - innovations_state_space
+      - prediction_error_method
+      - small_NARX_or_neural_SSM
+    external_prediction_schema: "data/phase3a/strong_baseline_predictions.csv"
+
+inference:
+  outer_group_folds: 5
+  inner_group_folds: 4
+  ridge_alphas: [0.0, 1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1, 1.0, 10.0]
+  bootstrap_repetitions: 4000
+  confidence_level: 0.99
+  random_seed: 20260807
+
+controls:
+  memoryless_control_label: "memoryless"
+  memory_device_label: "memory"
+  insensitive_probe_label: "insensitive"
+  sensitive_probe_label: "sensitive"
+
+energy_audit:
+  max_relative_residual: 0.01
+
+gates:
+  G0: "finite values, unique trial ids, required schema, no device leakage"
+  G1: "observable pre-state equivalence and <=10% device exclusion"
+  G2: "99% CI upper of RMSE(MH)/RMSE(M0) < 0.90"
+  G3: "99% CI upper of RMSE(MH)/RMSE(strong baseline) < 1.05 when external predictions are present"
+  G4: "99% CI lower of RMSE(MH-shuffled)/RMSE(MH) > 1.10"
+  G5: "memoryless-control MH/M0 99% CI wholly inside [0.95, 1.05]"
+  G6: "insensitive-probe MH/M0 99% CI wholly inside [0.95, 1.05]"
+  G7: "absolute energy-balance residual <1% of input work"
+  G8: "independent validator reproduces hashes, predictions, intervals, and gates"
+
+raw_sample_schema:
+  required_columns:
+    - device_id
+    - trial_id
+    - order
+    - replicate
+    - control_type
+    - probe_band
+    - phase
+    - time_s
+    - voltage_v
+    - current_a
+    - temperature_c
+    - last_stimulus
+    - total_stimulus_abs
+    - conditioning_work_j
+
+freeze_sequence:
+  - null_calibration_1000
+  - hardware_pilot_8_devices
+  - freeze_stimulus_probe_equivalence_and_transform
+  - sha256_freeze_code_config_dependencies
+  - smoke_test
+  - confirmatory_30_new_devices
+  - independent_validation
