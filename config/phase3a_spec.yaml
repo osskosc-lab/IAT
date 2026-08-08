@@ -2,12 +2,13 @@ phase: "3A"
 name: "Observable-Only History-Conditioned Work Experiment"
 status: "PILOT_OPEN"
 confirmatory_locked: false
-analysis_hardening_revision: "r2-spline"
+analysis_hardening_revision: "r3-reset-carryover"
 scientific_boundary: >-
   Tests whether stimulus order adds predictive information for a common probe response
   in observable-only passive RC systems after observable-state, acquisition-time,
-  conditioning-work, and control adjustments. It does not claim a new conserved energy,
-  superiority over standard system identification, or a new physical law.
+  previous-trial carryover, conditioning-work, and control adjustments. It does not
+  claim a new conserved energy, superiority over standard system identification,
+  or a new physical law.
 
 primary_claim:
   target: "asinh(probe_work_j / scale_j)"
@@ -30,8 +31,17 @@ randomization:
   forbid_order_blocks: true
   record_run_index: true
   record_block_id: true
+  derive_previous_trial_order_from_run_index: true
+  record_reset_elapsed_s: true
   schedule_seed: "freeze_after_pilot_before_confirmatory"
   max_abs_spearman_order_code_vs_run_index: 0.10
+
+reset_control:
+  reset_duration_s: "pilot_selected_and_frozen"
+  diagnostic: "previous-trial order and reset elapsed time are nuisance covariates in M0 and MH"
+  confirmation_requirement: >-
+    pilot must demonstrate terminal relaxation and control analyses compatible with the
+    frozen reset duration; previous-trial carryover may not be interpreted as current-history evidence.
 
 observable_state_gate:
   abs_pre_voltage_v_max: 0.001
@@ -76,9 +86,11 @@ models:
       - total_stimulus_abs
       - conditioning_work_j
       - run_index
+      - reset_elapsed_s
     categorical_features:
       - last_stimulus
       - block_id
+      - previous_trial_order
     fixed_nonlinear_map:
       type: "physically_scaled_linear_hinge_spline"
       knots_normalized_to_gate: [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
@@ -98,6 +110,7 @@ models:
         - "pre_current_a * total_stimulus_abs"
         - "pre_temperature_delta_c * conditioning_work_j"
         - "square(run_index)"
+        - "square(reset_elapsed_s)"
   history:
     name: "MH"
     base: "M0"
@@ -140,7 +153,7 @@ energy_audit:
   validator_recomputes_numeric_residual: true
 
 gates:
-  G0: "finite values, unique trial ids, required schema, randomized schedule audit, no device leakage"
+  G0: "finite values, unique trial ids, required schema, randomized schedule audit, previous-trial sequence integrity, no device leakage"
   G1: "trial-level pre-state exclusion; device fail fraction <=10%; <=10% device exclusion; order-pair exclusion imbalance <=5%; within-gate observable balance"
   G2: "99% CI upper of RMSE(MH)/RMSE(M0) < 0.90"
   G3: "strong-baseline predictions present and 99% CI upper of RMSE(MH)/RMSE(strong baseline) < 1.05"
@@ -158,6 +171,7 @@ raw_sample_schema:
     - replicate
     - run_index
     - block_id
+    - reset_elapsed_s
     - control_type
     - probe_band
     - phase
@@ -174,9 +188,10 @@ freeze_sequence:
   - null_calibration_1000
   - adversarial_falsification_r1
   - adversarial_falsification_r2
+  - adversarial_falsification_r3_reset_carryover
   - hardened_analysis_regression_suite
   - hardware_pilot_8_devices
-  - freeze_stimulus_probe_equivalence_transform_and_schedule
+  - freeze_stimulus_probe_equivalence_transform_reset_and_schedule
   - implement_and_audit_strong_baselines
   - sha256_freeze_code_config_dependencies
   - smoke_test
