@@ -11,6 +11,8 @@ from phase3a_adversarial_falsification import (
     _cv_ratio,
     nonlinear_observable_confound,
     blocked_run_drift,
+    sine_observable_confound,
+    threshold_observable_confound,
     true_order_effect,
 )
 
@@ -45,18 +47,29 @@ def test_simple_null_generator_has_no_material_history_advantage():
     assert all(len(v) == 1 for v in by_device.values())
 
 
-def test_legacy_linear_baseline_is_falsified_by_nonlinear_observable_confound():
+def test_legacy_linear_baseline_is_falsified_by_quadratic_observable_confound():
     rows = nonlinear_observable_confound(0)
-    assert _cv_ratio(rows, hardened=False) < 0.90
-    assert 0.97 < _cv_ratio(rows, hardened=True) < 1.03
+    assert _cv_ratio(rows, "legacy") < 0.90
+    assert 0.97 < _cv_ratio(rows, "r1") < 1.03
 
 
-def test_hardened_baseline_blocks_acquisition_drift_proxy():
+def test_r1_blocks_acquisition_drift_proxy():
     rows = blocked_run_drift(1)
-    assert _cv_ratio(rows, hardened=False) < 0.90
-    assert 0.97 < _cv_ratio(rows, hardened=True) < 1.03
+    assert _cv_ratio(rows, "legacy") < 0.90
+    assert 0.97 < _cv_ratio(rows, "r1") < 1.03
 
 
-def test_hardening_preserves_true_order_sensitivity():
-    rows = true_order_effect(2)
-    assert _cv_ratio(rows, hardened=True) < 0.90
+def test_quadratic_r1_is_falsified_by_sine_observable_response():
+    rows = sine_observable_confound(2)
+    assert _cv_ratio(rows, "r1") < 0.90
+    assert 0.97 < _cv_ratio(rows, "r2") < 1.05
+
+
+def test_spline_r2_blocks_threshold_observable_proxy():
+    rows = threshold_observable_confound(3)
+    assert 0.95 < _cv_ratio(rows, "r2") < 1.05
+
+
+def test_r2_preserves_true_order_sensitivity():
+    rows = true_order_effect(4)
+    assert _cv_ratio(rows, "r2") < 0.90
