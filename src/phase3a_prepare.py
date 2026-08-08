@@ -7,7 +7,7 @@ from collections import defaultdict
 
 import numpy as np
 
-from phase3a_core_hardened import load_spec, write_csv
+from phase3a_core_hardened_r3 import load_spec, write_csv
 
 
 def aggregate(raw_path: str, spec_path: str) -> list[dict]:
@@ -48,6 +48,8 @@ def aggregate(raw_path: str, spec_path: str) -> list[dict]:
             "replicate": first["replicate"],
             "run_index": int(float(first["run_index"])),
             "block_id": first["block_id"],
+            "previous_trial_order": "NONE",  # derived below from run_index, never trusted from raw labels
+            "reset_elapsed_s": float(first["reset_elapsed_s"]),
             "control_type": first["control_type"],
             "probe_band": first["probe_band"],
             "last_stimulus": first["last_stimulus"],
@@ -69,6 +71,7 @@ def aggregate(raw_path: str, spec_path: str) -> list[dict]:
         }
         device_pre_temp[device].append(row["pre_temperature_c"])
         provisional.append(row)
+
     medians = {d: float(np.median(v)) for d, v in device_pre_temp.items()}
     for r in provisional:
         r["pre_temperature_delta_c"] = r["pre_temperature_c"] - medians[r["device_id"]]
@@ -79,6 +82,23 @@ def aggregate(raw_path: str, spec_path: str) -> list[dict]:
             and abs(r["pre_temperature_delta_c"]) < float(gate["abs_pre_temperature_delta_c_max"])
         )
         r["energy_audit_pass"] = abs(r["energy_relative_residual"]) < float(spec["energy_audit"]["max_relative_residual"])
+
+    # Derive previous-trial order from actual acquisition order.  This prevents an
+    # acquisition controller from silently supplying a convenient nuisance label.
+    by_device: dict[str, list[dict]] = defaultdict(list)
+    for r in provisional:
+        by_device[r["device_id"]].append(r)
+    for device, rs in by_device.items():
+        rs.sort(key=lambda r: int(r["run_index"]))
+        seen = set()
+        previous = "NONE"
+        for r in rs:
+            if r["run_index"] in seen:
+                raise ValueError(f"duplicate run_index for device {device}: {r['run_index']}")
+            seen.add(r["run_index"])
+            r["previous_trial_order"] = previous
+            previous = r["order"]
+
     return provisional
 
 
