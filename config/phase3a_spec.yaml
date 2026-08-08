@@ -2,6 +2,7 @@ phase: "3A"
 name: "Observable-Only History-Conditioned Work Experiment"
 status: "PILOT_OPEN"
 confirmatory_locked: false
+analysis_hardening_revision: "r2-spline"
 scientific_boundary: >-
   Tests whether stimulus order adds predictive information for a common probe response
   in observable-only passive RC systems after observable-state, acquisition-time,
@@ -69,6 +70,7 @@ models:
     continuous_features:
       - pre_voltage_v
       - pre_current_a
+      - pre_current_fraction_full_scale
       - pre_voltage_slope_v_per_s
       - pre_temperature_delta_c
       - total_stimulus_abs
@@ -77,15 +79,25 @@ models:
     categorical_features:
       - last_stimulus
       - block_id
-    fixed_nonlinear_terms:
-      - "square(pre_voltage_v)"
-      - "square(pre_current_a)"
-      - "square(pre_voltage_slope_v_per_s)"
-      - "square(pre_temperature_delta_c)"
-      - "square(run_index)"
-      - "pre_voltage_v * total_stimulus_abs"
-      - "pre_current_a * total_stimulus_abs"
-      - "pre_temperature_delta_c * conditioning_work_j"
+    fixed_nonlinear_map:
+      type: "physically_scaled_linear_hinge_spline"
+      knots_normalized_to_gate: [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+      spline_variables:
+        - pre_voltage_v
+        - pre_current_fraction_full_scale
+        - pre_voltage_slope_v_per_s
+        - pre_temperature_delta_c
+      interactions:
+        - "normalized_pre_voltage * normalized_pre_current_fraction"
+        - "normalized_pre_voltage * normalized_temperature"
+        - "normalized_pre_current_fraction * normalized_temperature"
+        - "normalized_pre_voltage * normalized_slope"
+        - "normalized_pre_current_fraction * normalized_slope"
+        - "normalized_slope * normalized_temperature"
+        - "pre_voltage_v * total_stimulus_abs"
+        - "pre_current_a * total_stimulus_abs"
+        - "pre_temperature_delta_c * conditioning_work_j"
+        - "square(run_index)"
   history:
     name: "MH"
     base: "M0"
@@ -161,6 +173,7 @@ raw_sample_schema:
 freeze_sequence:
   - null_calibration_1000
   - adversarial_falsification_r1
+  - adversarial_falsification_r2
   - hardened_analysis_regression_suite
   - hardware_pilot_8_devices
   - freeze_stimulus_probe_equivalence_transform_and_schedule
