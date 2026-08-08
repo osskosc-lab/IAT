@@ -55,7 +55,8 @@ observable_balance_gate:
 
 outcome:
   transform: "asinh"
-  scale_j: "pilot_selected_and_frozen"
+  scale_j: 0.001
+  scale_status: "provisional_for_pilot; freeze or replace before confirmatory"
   primary: "probe_work_j"
   secondary:
     - probe_max_abs_current_a
