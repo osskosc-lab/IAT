@@ -7,13 +7,17 @@ on:
         description: "Run all 1,000 synthetic null replicates"
         type: boolean
         default: true
+      adversarial_replicates:
+        description: "Adversarial falsification replicates"
+        required: false
+        default: "200"
   pull_request:
     branches: [main]
     paths:
       - "src/phase3a_*"
       - "config/phase3a_spec.yaml"
       - "tests/test_phase3a.py"
-      - "docs/phase3a_preregistration.md"
+      - "docs/phase3a_*"
       - "data/phase3a/**"
       - ".github/workflows/phase3a.yml"
   push:
@@ -22,7 +26,7 @@ on:
       - "src/phase3a_*"
       - "config/phase3a_spec.yaml"
       - "tests/test_phase3a.py"
-      - "docs/phase3a_preregistration.md"
+      - "docs/phase3a_*"
       - "data/phase3a/**"
       - ".github/workflows/phase3a.yml"
 
@@ -34,7 +38,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  preregistration-and-null:
+  preregistration-and-falsification:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -48,10 +52,22 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip && pip install -r requirements.txt
       - name: Record preregistration hashes
-        run: sha256sum config/phase3a_spec.yaml docs/phase3a_preregistration.md src/phase3a_core.py src/phase3a_prepare.py src/phase3a_analyze.py src/phase3a_null_calibration.py src/phase3a_validator.py tests/test_phase3a.py | tee phase3a_hashes.txt
+        run: |
+          sha256sum \
+            config/phase3a_spec.yaml \
+            docs/phase3a_preregistration.md \
+            docs/phase3a_adversarial_falsification.md \
+            src/phase3a_core.py \
+            src/phase3a_core_hardened.py \
+            src/phase3a_prepare.py \
+            src/phase3a_analyze.py \
+            src/phase3a_null_calibration.py \
+            src/phase3a_adversarial_falsification.py \
+            src/phase3a_validator.py \
+            tests/test_phase3a.py | tee phase3a_hashes.txt
       - name: Unit tests
         run: pytest -q tests/test_phase3a.py
-      - name: Null calibration
+      - name: Simple null calibration
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.full_null_calibration }}" == "true" ]]; then
             N=1000
@@ -59,6 +75,14 @@ jobs:
             N=100
           fi
           python src/phase3a_null_calibration.py --replicates "$N"
+      - name: Adversarial falsification regression suite
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            N="${{ inputs.adversarial_replicates }}"
+          else
+            N=50
+          fi
+          python src/phase3a_adversarial_falsification.py --replicates "$N" --out results/phase3a/adversarial_falsification_r1.json
       - name: Analyze committed hardware data when present
         if: ${{ hashFiles('data/phase3a/trials.csv') != '' }}
         run: |
@@ -68,16 +92,22 @@ jobs:
         if: always()
         run: |
           cat results/phase3a/null_calibration/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+          if [ -f results/phase3a/adversarial_falsification_r1.json ]; then
+            echo '## Adversarial falsification r1' >> "$GITHUB_STEP_SUMMARY"
+            cat results/phase3a/adversarial_falsification_r1.json >> "$GITHUB_STEP_SUMMARY"
+          fi
           cat results/phase3a/summary.md >> "$GITHUB_STEP_SUMMARY" || true
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: IAT-Phase3A-preregistration-and-null
+          name: IAT-Phase3A-preregistration-and-falsification
           path: |
             phase3a_hashes.txt
             results/phase3a/
             config/phase3a_spec.yaml
             docs/phase3a_preregistration.md
+            docs/phase3a_adversarial_falsification.md
+            reports/Phase3A/adversarial_falsification_r1.json
           if-no-files-found: warn
           retention-days: 90
