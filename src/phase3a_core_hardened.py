@@ -33,6 +33,7 @@ BASE_CONTINUOUS = [
 ]
 REQUIRED_TRIAL_COLUMNS = {
     "device_id", "trial_id", "order", "replicate", "run_index", "block_id",
+    "previous_trial_order", "reset_elapsed_s",
     "control_type", "probe_band", "last_stimulus", "pre_voltage_v",
     "pre_current_a", "pre_current_fraction_full_scale",
     "pre_voltage_slope_v_per_s", "pre_temperature_delta_c",
@@ -118,10 +119,12 @@ def validate_trial_rows(rows: list[dict], spec: dict, require_confirmatory_count
             raise ValueError(f"unexpected order {r['order']}")
         if r["last_stimulus"] != r["order"][-1]:
             raise ValueError(f"last stimulus/order mismatch in {r['trial_id']}")
+        if r["previous_trial_order"] not in orders | {"NONE"}:
+            raise ValueError(f"unexpected previous_trial_order {r['previous_trial_order']}")
         devices.setdefault(r["device_id"], []).append(r)
         for key in BASE_CONTINUOUS + [
             "probe_work_j", "outcome_y", "pre_current_fraction_full_scale",
-            "energy_relative_residual",
+            "energy_relative_residual", "reset_elapsed_s",
         ]:
             if not np.isfinite(_to_float(r, key)):
                 raise ValueError(f"non-finite {key}")
