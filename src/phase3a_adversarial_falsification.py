@@ -1,15 +1,13 @@
 """Adversarial software falsification for IAT Phase 3A before hardware locking.
 
 The suite intentionally searches for false history advantages under generators
-with no genuine within-trial order effect.  It keeps three analysis variants:
+with no genuine within-trial order effect.
 
+Analysis revisions:
 - legacy: linear observable-current-state baseline;
 - r1: quadratic/interactions + acquisition run terms;
-- r2: physically-scaled hinge-spline current-state baseline + run terms.
-
-Round 1 falsified the legacy baseline.  Round 2 then falsified the quadratic r1
-baseline using smooth oscillatory and threshold response functions of observable
-pre-state variables.  r2 is the current PILOT_OPEN candidate.
+- r2: physically-scaled hinge-spline current-state baseline + run terms;
+- r3: r2 + previous-trial order + measured reset elapsed time.
 
 Synthetic audits are not RC-circuit evidence.
 """
@@ -84,7 +82,6 @@ def _hinges(z: np.ndarray, knots: np.ndarray) -> np.ndarray:
 
 
 def _base_r2(rows: dict[str, np.ndarray]) -> np.ndarray:
-    # Fixed physical scaling uses the provisional observable-equivalence widths.
     v = rows["pre_v"] / 1.0e-3
     i = rows["pre_i"] / 1.0e-3
     slope = rows["slope"] / 2.0e-4
@@ -106,6 +103,14 @@ def _base_r2(rows: dict[str, np.ndarray]) -> np.ndarray:
     return np.column_stack([cont, spline, interactions, last])
 
 
+def _base_r3(rows: dict[str, np.ndarray]) -> np.ndarray:
+    x = _base_r2(rows)
+    levels = ["NONE"] + ORDERS
+    prev = np.column_stack([(rows["previous_order"] == x).astype(float) for x in levels])
+    reset = rows["reset_elapsed_s"]
+    return np.column_stack([x, prev, reset, reset**2])
+
+
 def _design(rows: dict[str, np.ndarray], revision: str) -> tuple[np.ndarray, np.ndarray, float]:
     if revision == "legacy":
         x0, alpha = _base_legacy(rows), 1e-4
@@ -113,6 +118,8 @@ def _design(rows: dict[str, np.ndarray], revision: str) -> tuple[np.ndarray, np.
         x0, alpha = _base_r1(rows), 1e-4
     elif revision == "r2":
         x0, alpha = _base_r2(rows), 1e-2
+    elif revision == "r3":
+        x0, alpha = _base_r3(rows), 1e-2
     else:
         raise ValueError(f"unknown revision: {revision}")
     hist = np.vstack([history_features(str(o)) for o in rows["order"]])
@@ -120,7 +127,6 @@ def _design(rows: dict[str, np.ndarray], revision: str) -> tuple[np.ndarray, np.
 
 
 def _cv_ratio(rows: dict[str, np.ndarray], revision: str | bool) -> float:
-    # bool compatibility keeps existing tests readable: False=legacy, True=r1.
     if revision is False:
         revision = "legacy"
     elif revision is True:
@@ -140,19 +146,29 @@ def _cv_ratio(rows: dict[str, np.ndarray], revision: str | bool) -> float:
 
 def _pack(records: list[tuple]) -> dict[str, np.ndarray]:
     arr = list(zip(*records))
-    return {
-        "device": np.asarray(arr[0], dtype=int),
-        "order": np.asarray(arr[1], dtype=object),
-        "last": np.asarray(arr[2], dtype=object),
-        "pre_v": np.asarray(arr[3], dtype=float),
-        "pre_i": np.asarray(arr[4], dtype=float),
-        "slope": np.asarray(arr[5], dtype=float),
-        "temp": np.asarray(arr[6], dtype=float),
-        "total": np.asarray(arr[7], dtype=float),
-        "work": np.asarray(arr[8], dtype=float),
-        "y": np.asarray(arr[9], dtype=float),
-        "run_index": np.asarray(arr[10], dtype=float),
-    }
+    keys = [
+        "device", "order", "last", "pre_v", "pre_i", "slope", "temp",
+        "total", "work", "y", "run_index", "previous_order", "reset_elapsed_s",
+    ]
+    out = {}
+    for key, values in zip(keys, arr):
+        if key in {"order", "last", "previous_order"}:
+            out[key] = np.asarray(values, dtype=object)
+        elif key == "device":
+            out[key] = np.asarray(values, dtype=int)
+        else:
+            out[key] = np.asarray(values, dtype=float)
+    return out
+
+
+def _common_row(rng, d, order, run, previous, reset, y):
+    v = rng.normal(0, 1e-4)
+    i = rng.normal(0, 5e-5)
+    slope = rng.normal(0, 2e-5)
+    temp = rng.normal(0, 0.03)
+    total = 3.0 + rng.normal(0, 0.01)
+    work = 0.05 + rng.normal(0, 0.002)
+    return (d, order, order[-1], v, i, slope, temp, total, work, y, run, previous, reset)
 
 
 def quadratic_observable_confound(seed: int, n_devices: int = 30, reps: int = 8) -> dict[str, np.ndarray]:
@@ -161,6 +177,7 @@ def quadratic_observable_confound(seed: int, n_devices: int = 30, reps: int = 8)
     rows = []
     for d in range(n_devices):
         device_effect = rng.normal(0, 0.10)
+        previous = "NONE"
         for order in ORDERS:
             for rep in range(reps):
                 v = rng.normal(means[order], 5e-5)
@@ -171,11 +188,11 @@ def quadratic_observable_confound(seed: int, n_devices: int = 30, reps: int = 8)
                 work = 0.05 + rng.normal(0, 0.002)
                 y = 2.2e6 * v**2 + 0.15 * temp + device_effect + rng.normal(0, 0.18)
                 run = rep * len(ORDERS) + ORDERS.index(order)
-                rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run))
+                rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run, previous, 10.0))
+                previous = order
     return _pack(rows)
 
 
-# Backward-compatible name used by tests.
 nonlinear_observable_confound = quadratic_observable_confound
 
 
@@ -185,6 +202,7 @@ def sine_observable_confound(seed: int, n_devices: int = 30, reps: int = 8) -> d
     rows = []
     for d in range(n_devices):
         device_effect = rng.normal(0, 0.10)
+        previous = "NONE"
         for order in ORDERS:
             for rep in range(reps):
                 v = rng.normal(means[order], 5e-5)
@@ -195,7 +213,8 @@ def sine_observable_confound(seed: int, n_devices: int = 30, reps: int = 8) -> d
                 work = 0.05 + rng.normal(0, 0.002)
                 y = np.sin((v / 1e-3) * 5.5) + 0.15 * temp + device_effect + rng.normal(0, 0.18)
                 run = rep * len(ORDERS) + ORDERS.index(order)
-                rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run))
+                rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run, previous, 10.0))
+                previous = order
     return _pack(rows)
 
 
@@ -205,6 +224,7 @@ def threshold_observable_confound(seed: int, n_devices: int = 30, reps: int = 8)
     rows = []
     for d in range(n_devices):
         device_effect = rng.normal(0, 0.10)
+        previous = "NONE"
         for order in ORDERS:
             for rep in range(reps):
                 v = rng.normal(means[order], 5e-5)
@@ -215,7 +235,8 @@ def threshold_observable_confound(seed: int, n_devices: int = 30, reps: int = 8)
                 work = 0.05 + rng.normal(0, 0.002)
                 y = (1.2 if abs(v) > 4e-4 else -0.2) + 0.2 * float(v > 0) + device_effect + rng.normal(0, 0.18)
                 run = rep * len(ORDERS) + ORDERS.index(order)
-                rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run))
+                rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run, previous, 10.0))
+                previous = order
     return _pack(rows)
 
 
@@ -225,22 +246,40 @@ def blocked_run_drift(seed: int, n_devices: int = 30, reps: int = 8) -> dict[str
     for d in range(n_devices):
         device_effect = rng.normal(0, 0.10)
         sequence = [o for o in ORDERS for _ in range(reps)]
+        previous = "NONE"
         for run, order in enumerate(sequence):
-            v = rng.normal(0, 1e-4)
-            i = rng.normal(0, 5e-5)
-            slope = rng.normal(0, 2e-5)
-            temp = rng.normal(0, 0.03)
-            total = 3.0 + rng.normal(0, 0.01)
-            work = 0.05 + rng.normal(0, 0.002)
             y = 0.035 * run + device_effect + rng.normal(0, 0.15)
-            rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run))
+            rows.append(_common_row(rng, d, order, run, previous, 10.0, y))
+            previous = order
+    return _pack(rows)
+
+
+def previous_trial_carryover_confound(seed: int, n_devices: int = 30, reps: int = 8) -> dict[str, np.ndarray]:
+    """No current-order effect; only the previous experimental trial affects Y."""
+    rng = np.random.default_rng(seed)
+    previous_score = dict(zip(ORDERS, [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]))
+    rows = []
+    for d in range(n_devices):
+        device_effect = rng.normal(0, 0.08)
+        shift = d % len(ORDERS)
+        sequence = []
+        for _ in range(reps):
+            sequence += ORDERS[shift:] + ORDERS[:shift]
+            shift = (shift + 1) % len(ORDERS)
+        previous = "NONE"
+        for run, order in enumerate(sequence):
+            reset = 10.0 + rng.normal(0, 0.10)
+            carry = 0.0 if previous == "NONE" else 0.45 * previous_score[previous]
+            y = carry + device_effect + rng.normal(0, 0.18)
+            rows.append(_common_row(rng, d, order, run, previous, reset, y))
+            previous = order
     return _pack(rows)
 
 
 def true_order_effect(seed: int, n_devices: int = 30, reps: int = 8) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
-    rows = []
     score = {o: (1.0 if o.index("A") < o.index("B") else -1.0) for o in ORDERS}
+    rows = []
     for d in range(n_devices):
         device_effect = rng.normal(0, 0.10)
         sequence = []
@@ -248,6 +287,7 @@ def true_order_effect(seed: int, n_devices: int = 30, reps: int = 8) -> dict[str
             block = ORDERS.copy()
             rng.shuffle(block)
             sequence.extend(block)
+        previous = "NONE"
         for run, order in enumerate(sequence):
             v = rng.normal(0, 1.5e-4)
             i = rng.normal(0, 7e-5)
@@ -260,7 +300,30 @@ def true_order_effect(seed: int, n_devices: int = 30, reps: int = 8) -> dict[str
                 + 1.5e6 * v**2 + 0.35 * score[order]
                 + device_effect + rng.normal(0, 0.25)
             )
-            rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run))
+            rows.append((d, order, order[-1], v, i, slope, temp, total, work, y, run, previous, 10.0 + rng.normal(0, 0.10)))
+            previous = order
+    return _pack(rows)
+
+
+def true_order_with_carryover(seed: int, n_devices: int = 30, reps: int = 8) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    current_score = {o: (1.0 if o.index("A") < o.index("B") else -1.0) for o in ORDERS}
+    previous_score = dict(zip(ORDERS, [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0]))
+    rows = []
+    for d in range(n_devices):
+        device_effect = rng.normal(0, 0.08)
+        sequence = []
+        for _ in range(reps):
+            block = ORDERS.copy()
+            rng.shuffle(block)
+            sequence.extend(block)
+        previous = "NONE"
+        for run, order in enumerate(sequence):
+            reset = 10.0 + rng.normal(0, 0.10)
+            carry = 0.0 if previous == "NONE" else 0.25 * previous_score[previous]
+            y = 0.35 * current_score[order] + carry + device_effect + rng.normal(0, 0.22)
+            rows.append(_common_row(rng, d, order, run, previous, reset, y))
+            previous = order
     return _pack(rows)
 
 
@@ -287,35 +350,25 @@ def run(replicates: int = 20, seed_start: int = 0) -> dict:
     sine_r2 = _many(sine_observable_confound, "r2", seed_range())
     threshold_r1 = _many(threshold_observable_confound, "r1", seed_range())
     threshold_r2 = _many(threshold_observable_confound, "r2", seed_range())
-    positive_r2 = _many(true_order_effect, "r2", seed_range())
+    carry_r2 = _many(previous_trial_carryover_confound, "r2", seed_range())
+    carry_r3 = _many(previous_trial_carryover_confound, "r3", seed_range())
+    positive_r3 = _many(true_order_with_carryover, "r3", seed_range())
     result = {
-        "experiment": "IAT Phase 3A adversarial falsification r2",
+        "experiment": "IAT Phase 3A adversarial falsification r3",
         "replicates": replicates,
         "seed_start": seed_start,
         "scientific_boundary": "synthetic software falsification only; not hardware evidence",
-        "round1_quadratic_observable_confound": {
-            "legacy": _summary(quad_legacy),
-            "r1": _summary(quad_r1),
-        },
-        "round1_blocked_run_drift": {
-            "legacy": _summary(drift_legacy),
-            "r1": _summary(drift_r1),
-        },
-        "round2_sine_observable_confound": {
-            "r1": _summary(sine_r1),
-            "r2": _summary(sine_r2),
-        },
-        "round2_threshold_observable_confound": {
-            "r1": _summary(threshold_r1),
-            "r2": _summary(threshold_r2),
-        },
-        "positive_control_r2": _summary(positive_r2),
-        "r2_pass": bool(
-            np.median(sine_r2) > 0.97
-            and np.median(threshold_r2) > 0.97
-            and np.mean(sine_r2 < 0.90) == 0
-            and np.mean(threshold_r2 < 0.90) == 0
-            and np.median(positive_r2) < 0.90
+        "round1_quadratic_observable_confound": {"legacy": _summary(quad_legacy), "r1": _summary(quad_r1)},
+        "round1_blocked_run_drift": {"legacy": _summary(drift_legacy), "r1": _summary(drift_r1)},
+        "round2_sine_observable_confound": {"r1": _summary(sine_r1), "r2": _summary(sine_r2)},
+        "round2_threshold_observable_confound": {"r1": _summary(threshold_r1), "r2": _summary(threshold_r2)},
+        "round3_previous_trial_carryover": {"r2": _summary(carry_r2), "r3": _summary(carry_r3)},
+        "positive_control_current_order_with_carryover_r3": _summary(positive_r3),
+        "r3_pass": bool(
+            np.median(carry_r2) < 0.90
+            and np.median(carry_r3) > 0.97
+            and np.mean(carry_r3 < 0.90) == 0
+            and np.median(positive_r3) < 0.90
         ),
     }
     return result
@@ -325,14 +378,14 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--replicates", type=int, default=20)
     p.add_argument("--seed-start", type=int, default=0)
-    p.add_argument("--out", default="results/phase3a/adversarial_falsification_r2.json")
+    p.add_argument("--out", default="results/phase3a/adversarial_falsification_r3.json")
     args = p.parse_args()
     result = run(args.replicates, args.seed_start)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
-    if not result["r2_pass"]:
+    if not result["r3_pass"]:
         raise SystemExit(1)
 
 
