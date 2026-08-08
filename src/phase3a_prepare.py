@@ -7,7 +7,7 @@ from collections import defaultdict
 
 import numpy as np
 
-from phase3a_core import load_spec, write_csv
+from phase3a_core_hardened import load_spec, write_csv
 
 
 def aggregate(raw_path: str, spec_path: str) -> list[dict]:
@@ -46,6 +46,8 @@ def aggregate(raw_path: str, spec_path: str) -> list[dict]:
             "trial_id": trial,
             "order": first["order"],
             "replicate": first["replicate"],
+            "run_index": int(float(first["run_index"])),
+            "block_id": first["block_id"],
             "control_type": first["control_type"],
             "probe_band": first["probe_band"],
             "last_stimulus": first["last_stimulus"],
@@ -61,7 +63,7 @@ def aggregate(raw_path: str, spec_path: str) -> list[dict]:
             "outcome_y": float(np.arcsinh(work / scale)),
             "probe_max_abs_current_a": float(np.max(np.abs(qi))),
             "probe_end_voltage_v": float(qv[-1]),
-            "energy_relative_residual": float(first.get("energy_relative_residual", 0.0) or 0.0),
+            "energy_relative_residual": float(first["energy_relative_residual"]),
             "pre_state_pass": False,
             "energy_audit_pass": False,
         }
