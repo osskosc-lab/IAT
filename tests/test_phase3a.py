@@ -13,7 +13,8 @@ from phase3a_adversarial_falsification import (
     blocked_run_drift,
     sine_observable_confound,
     threshold_observable_confound,
-    true_order_effect,
+    previous_trial_carryover_confound,
+    true_order_with_carryover,
 )
 
 SPEC = Path(__file__).resolve().parents[1] / "config" / "phase3a_spec.yaml"
@@ -70,6 +71,12 @@ def test_spline_r2_blocks_threshold_observable_proxy():
     assert 0.95 < _cv_ratio(rows, "r2") < 1.05
 
 
-def test_r2_preserves_true_order_sensitivity():
-    rows = true_order_effect(4)
+def test_r2_is_falsified_by_previous_trial_carryover():
+    rows = previous_trial_carryover_confound(4)
     assert _cv_ratio(rows, "r2") < 0.90
+    assert 0.97 < _cv_ratio(rows, "r3") < 1.05
+
+
+def test_r3_preserves_current_order_sensitivity_after_carryover_adjustment():
+    rows = true_order_with_carryover(5)
+    assert _cv_ratio(rows, "r3") < 0.90
