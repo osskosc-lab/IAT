@@ -6,7 +6,7 @@
 
 **PILOT OPEN.** The confirmatory run is not frozen and must not begin until the eight-device hardware pilot has fixed stimulus amplitudes, durations, reset time, probe bands, measurement ranges, observable-equivalence widths, acquisition schedule, outcome transform/scale, and strong-baseline adapters. Pilot devices and pilot outcomes are permanently excluded from the confirmatory dataset.
 
-The original software scaffold passed a simple null calibration but was subsequently falsified by two adversarial synthetic tests: nonlinear observable-state confounding and acquisition-time drift. The preregistration below incorporates the repairs before any hardware confirmation.
+The analysis has undergone two adversarial software-falsification rounds. The legacy linear M0 was falsified by nonlinear observable-state confounding and acquisition drift. A first quadratic repair was then itself falsified by smooth oscillatory and threshold response functions of observable pre-state. The current preregistered candidate is **hardened-r2**, using a fixed physically scaled hinge-spline current-state map.
 
 ## Central question
 
@@ -30,16 +30,9 @@ A small common chirp is the probe. The pilot must freeze one history-sensitive b
 
 The confirmatory study may not acquire all repetitions of one order as a block. A pre-generated balanced randomized interleaving schedule is required within every device.
 
-Every trial records:
+Every trial records `run_index`, `block_id`, order label, and replicate number. The schedule seed is frozen after the pilot and before any confirmatory device is measured. The schedule audit rejects duplicate run indices and requires the preregistered maximum absolute within-device Spearman correlation between order code and run index to remain at or below 0.10.
 
-- `run_index`;
-- `block_id`;
-- order label;
-- replicate number.
-
-The schedule seed is frozen after the pilot and before any confirmatory device is measured. The schedule audit rejects duplicate run indices and requires the preregistered maximum absolute within-device Spearman correlation between order code and run index to remain at or below 0.10.
-
-This requirement was added because a synthetic no-history generator with ordinary run drift produced a false median `MH/M0≈0.508` when orders were acquired in blocks. Adding run-index adjustment removed the artifact (`≈1.001`).
+This requirement was added because a synthetic no-history generator with ordinary run drift produced a false median `MH/M0≈0.508` when orders were acquired in blocks. Run-index adjustment removed the tested artifact (`≈1.001`).
 
 ## Observable pre-state gate and balance audit
 
@@ -52,33 +45,41 @@ A trial is eligible only when the probe-preceding observable state passes all pr
 
 Failed trials are removed **before model fitting**. A device is excluded only when its failed-trial fraction exceeds 10%. The overall excluded-device fraction may not exceed 10%.
 
-Order-specific exclusion is also audited: for each primary pair, the difference in trial-exclusion rate may not exceed 5 percentage points.
+Order-specific exclusion is audited: for each primary pair, the difference in trial-exclusion rate may not exceed 5 percentage points.
 
 Absolute eligibility bounds alone are insufficient because accepted values can still differ systematically by order. Therefore, among accepted trials, each primary pair must also pass a mean-balance audit. For pre-voltage, current fraction, voltage slope and temperature deviation, the absolute pairwise mean difference must be no larger than 25% of the corresponding eligibility width.
 
 This gate is an observable-equivalence statement, not a claim that the hidden internal state is identical.
 
-## Outcome and models
+## Outcome
 
 The provisional pilot outcome is `asinh(W_P / 0.001 J)`. The pilot may freeze that scale or preregister a replacement before confirmatory data exist.
 
-### M0 — hardened observable-current-state baseline
+## M0 — hardened-r2 observable-current-state baseline
 
-`M0` receives:
+M0 receives observable pre-state variables, last stimulus, total stimulus amount, conditioning work, `run_index`, and `block_id`.
 
-- observable pre-state variables;
-- last stimulus;
-- total stimulus amount;
-- conditioning work;
-- `run_index` and `block_id`.
+For the four observable-equivalence coordinates—pre-voltage, pre-current fraction of full scale, pre-voltage slope, and temperature deviation—M0 uses a fixed piecewise-linear hinge-spline basis. Knot locations are fixed relative to the physical gate widths at normalized values from `-0.8` through `0.8` in increments of `0.1`. They are not selected using outcome data.
 
-A fixed nonlinear feature map is included in `M0` before confirmatory locking: squares of pre-voltage, pre-current, pre-voltage slope, temperature deviation and run index, plus a small frozen interaction set. These terms are available equally to `M0` and `MH`.
+M0 also contains a small frozen interaction set and a squared run-index term. The identical current-state map is available to MH.
 
-This repair is mandatory because a synthetic no-history generator with an outcome quadratic in accepted pre-voltage produced a false median `MH/M0≈0.405` under the legacy linear baseline. The hardened observable-state map returned the ratio to `≈1.001` while preserving sensitivity to a true synthetic order effect (`≈0.800`).
+This r2 change is mandatory. The first quadratic hardening passed a quadratic confound but failed later attacks:
 
-### MH — history model
+- smooth sinusoidal observable response: r1 median `MH/M0≈0.350` with no true order effect;
+- threshold observable response: r1 median near `0.900`, with roughly 43% of diagnostic datasets below the 0.90 point threshold.
 
-`MH` is exactly the hardened `M0` plus the frozen order representation: positions of A/B/C and the six directed pair-order indicators. The representation cannot be changed after pilot freeze.
+Under the spline-hardened r2 map, the same attacks returned to null-like behavior:
+
+- sine confound: median `≈1.0012`, 0/50 below 0.90;
+- threshold confound: median `≈1.0057`, 0/50 below 0.90.
+
+A synthetic true-order positive control retained useful sensitivity with median `MH/M0≈0.802`.
+
+These are software stress tests, not power estimates for hardware.
+
+## MH — history model
+
+MH is exactly the hardened-r2 M0 plus the frozen order representation: positions of A/B/C and the six directed pair-order indicators. The representation cannot be changed after pilot freeze.
 
 Evaluation uses device-grouped nested cross-validation. Trials from a device may never appear in both training and test folds. The primary ratio is
 
@@ -104,6 +105,12 @@ The IAT history model is not required to beat a well-specified standard dynamic 
 6. **Within-gate balance audit:** accepted pre-state observables may not remain systematically order-separated beyond preregistered limits.
 7. **Energy audit:** absolute unaccounted energy must be below 1% of input work and is checked numerically rather than by trusting a stored Boolean alone.
 8. **Independent validator:** must reproduce hashes, exclusions, predictions, confidence intervals, shuffle/control gates and the final Gate table.
+
+## Remaining pre-lock falsification targets
+
+Before confirmatory lock, the software stress suite should still attack reset carryover, sparse conditional-shuffle strata, device heterogeneity, missing/clipped samples, voltage-current timing error, long-memory temperature drift, order-dependent gate exclusion, multivariate nonlinear response surfaces, and bootstrap uncertainty under model refitting.
+
+Any false confirmatory PASS in these stress tests requires another repair and retest.
 
 ## Decision language
 
