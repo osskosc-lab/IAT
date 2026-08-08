@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from phase3a_core_hardened import (
+from phase3a_core_hardened_r2 import (
     analyze_subset,
     apply_prestate_policy,
     gate_status,
@@ -81,7 +81,7 @@ def main() -> None:
     write_csv(out / "predictions.csv", predictions)
     report = {
         "phase": "3A",
-        "implementation": "hardened-r1",
+        "implementation": "hardened-r2-spline",
         "integrity": integrity,
         "prestate_policy": prestate,
         "schedule_audit": schedule,
@@ -98,7 +98,7 @@ def main() -> None:
     ratio = primary_analysis["ratio_mh_m0"]
     shuf = primary_analysis["shuffle_ordered"]
     lines = [
-        "# IAT Phase 3A hardened analysis",
+        "# IAT Phase 3A hardened-r2 analysis",
         "",
         f"- Raw devices: {integrity['n_devices']}",
         f"- Raw trials: {integrity['n_trials']}",
