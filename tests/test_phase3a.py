@@ -7,6 +7,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from phase3a_core import group_folds, history_features, load_spec, cross_validated_predictions
 from phase3a_null_calibration import generate_null
+from phase3a_adversarial_falsification import (
+    _cv_ratio,
+    nonlinear_observable_confound,
+    blocked_run_drift,
+    true_order_effect,
+)
 
 SPEC = Path(__file__).resolve().parents[1] / "config" / "phase3a_spec.yaml"
 
@@ -28,7 +34,7 @@ def test_group_folds_never_split_a_device():
     assert all(a.isdisjoint(b) for i, a in enumerate(folds) for b in folds[i + 1:])
 
 
-def test_null_generator_has_no_material_history_advantage():
+def test_simple_null_generator_has_no_material_history_advantage():
     spec = load_spec(SPEC)
     rows = generate_null(spec, 12345, n_devices=12)
     result = cross_validated_predictions(rows, spec)
@@ -37,3 +43,20 @@ def test_null_generator_has_no_material_history_advantage():
     for r in result.rows:
         by_device.setdefault(r["device_id"], set()).add(r["fold"])
     assert all(len(v) == 1 for v in by_device.values())
+
+
+def test_legacy_linear_baseline_is_falsified_by_nonlinear_observable_confound():
+    rows = nonlinear_observable_confound(0)
+    assert _cv_ratio(rows, hardened=False) < 0.90
+    assert 0.97 < _cv_ratio(rows, hardened=True) < 1.03
+
+
+def test_hardened_baseline_blocks_acquisition_drift_proxy():
+    rows = blocked_run_drift(1)
+    assert _cv_ratio(rows, hardened=False) < 0.90
+    assert 0.97 < _cv_ratio(rows, hardened=True) < 1.03
+
+
+def test_hardening_preserves_true_order_sensitivity():
+    rows = true_order_effect(2)
+    assert _cv_ratio(rows, hardened=True) < 0.90
