@@ -60,6 +60,7 @@ jobs:
             src/phase3a_core.py \
             src/phase3a_core_hardened.py \
             src/phase3a_core_hardened_r2.py \
+            src/phase3a_core_hardened_r3.py \
             src/phase3a_prepare.py \
             src/phase3a_analyze.py \
             src/phase3a_null_calibration.py \
@@ -76,14 +77,14 @@ jobs:
             N=100
           fi
           python src/phase3a_null_calibration.py --replicates "$N"
-      - name: Adversarial falsification regression suite r2
+      - name: Adversarial falsification regression suite r3
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             N="${{ inputs.adversarial_replicates }}"
           else
             N=20
           fi
-          python src/phase3a_adversarial_falsification.py --replicates "$N" --out results/phase3a/adversarial_falsification_r2.json
+          python src/phase3a_adversarial_falsification.py --replicates "$N" --out results/phase3a/adversarial_falsification_r3.json
       - name: Analyze committed hardware data when present
         if: ${{ hashFiles('data/phase3a/trials.csv') != '' }}
         run: |
@@ -93,9 +94,9 @@ jobs:
         if: always()
         run: |
           cat results/phase3a/null_calibration/summary.md >> "$GITHUB_STEP_SUMMARY" || true
-          if [ -f results/phase3a/adversarial_falsification_r2.json ]; then
-            echo '## Adversarial falsification r2' >> "$GITHUB_STEP_SUMMARY"
-            cat results/phase3a/adversarial_falsification_r2.json >> "$GITHUB_STEP_SUMMARY"
+          if [ -f results/phase3a/adversarial_falsification_r3.json ]; then
+            echo '## Adversarial falsification r3' >> "$GITHUB_STEP_SUMMARY"
+            cat results/phase3a/adversarial_falsification_r3.json >> "$GITHUB_STEP_SUMMARY"
           fi
           cat results/phase3a/summary.md >> "$GITHUB_STEP_SUMMARY" || true
       - name: Upload artifacts
@@ -111,5 +112,6 @@ jobs:
             docs/phase3a_adversarial_falsification.md
             reports/Phase3A/adversarial_falsification_r1.json
             reports/Phase3A/adversarial_falsification_r2.json
+            reports/Phase3A/adversarial_falsification_r3.json
           if-no-files-found: warn
           retention-days: 90
