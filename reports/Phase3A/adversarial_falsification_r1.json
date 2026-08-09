@@ -1,0 +1,47 @@
+{
+  "experiment": "IAT Phase 3A adversarial falsification r1",
+  "replicates": 50,
+  "seed_start": 0,
+  "scientific_boundary": "synthetic software falsification only; not hardware evidence",
+  "nonlinear_observable_confound": {
+    "legacy": {
+      "median": 0.40503719011281686,
+      "q05": 0.3911211167029612,
+      "q95": 0.42683528209156996,
+      "fraction_point_ratio_below_0_90": 1.0
+    },
+    "hardened": {
+      "median": 1.0010653194420929,
+      "q05": 0.9990610049772878,
+      "q95": 1.0029513415112528,
+      "fraction_point_ratio_below_0_90": 0.0
+    },
+    "legacy_falsified": true,
+    "hardened_pass": true
+  },
+  "blocked_run_drift": {
+    "legacy": {
+      "median": 0.5077528543615608,
+      "q05": 0.4921697415320865,
+      "q95": 0.5299209091390861,
+      "fraction_point_ratio_below_0_90": 1.0
+    },
+    "hardened": {
+      "median": 1.0008490198873519,
+      "q05": 0.999525133569639,
+      "q95": 1.002424719633382,
+      "fraction_point_ratio_below_0_90": 0.0
+    },
+    "legacy_falsified": true,
+    "hardened_pass": true
+  },
+  "positive_control": {
+    "hardened": {
+      "median": 0.8003125508996995,
+      "q05": 0.7804166767386995,
+      "q95": 0.8190411537240295,
+      "fraction_point_ratio_below_0_90": 1.0
+    },
+    "sensitivity_preserved": true
+  }
+}

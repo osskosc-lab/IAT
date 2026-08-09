@@ -1,0 +1,28 @@
+{
+  "experiment": "IAT Phase 3A adversarial falsification r3",
+  "replicates": 50,
+  "seed_start": 0,
+  "scientific_boundary": "synthetic software falsification only; not hardware evidence",
+  "round3_previous_trial_carryover": {
+    "r2": {
+      "median": 0.7007850512008333,
+      "q05": 0.644189827847168,
+      "q95": 0.7209079205770221,
+      "fraction_point_ratio_below_0_90": 1.0
+    },
+    "r3": {
+      "median": 1.0013503593177004,
+      "q05": 0.9977806833134037,
+      "q95": 1.0046362187337547,
+      "fraction_point_ratio_below_0_90": 0.0
+    }
+  },
+  "positive_control_current_order_with_carryover_r3": {
+    "median": 0.7617021525377317,
+    "q05": 0.6543459862037705,
+    "q95": 0.8805741721932311,
+    "fraction_point_ratio_below_0_90": 0.96
+  },
+  "r3_pass": true,
+  "interpretation": "The r2 current-trial baseline could mistake previous experimental-trial carryover for current A/B/C order value when schedules linked adjacent orders. Adding previous-trial order and measured reset elapsed time to both M0 and MH removed the tested false advantage while retaining sensitivity to a genuine current-order contribution."
+}

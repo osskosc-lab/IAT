@@ -1,0 +1,199 @@
+phase: "3A"
+name: "Observable-Only History-Conditioned Work Experiment"
+status: "PILOT_OPEN"
+confirmatory_locked: false
+analysis_hardening_revision: "r3-reset-carryover"
+scientific_boundary: >-
+  Tests whether stimulus order adds predictive information for a common probe response
+  in observable-only passive RC systems after observable-state, acquisition-time,
+  previous-trial carryover, conditioning-work, and control adjustments. It does not
+  claim a new conserved energy, superiority over standard system identification,
+  or a new physical law.
+
+primary_claim:
+  target: "asinh(probe_work_j / scale_j)"
+  metric: "RMSE ratio M_H / M_0"
+  support_criterion: "99% CI upper < 0.90"
+  statistical_unit: "device"
+
+stimuli:
+  orders: [ABC, ACB, BAC, BCA, CAB, CBA]
+  primary_pairs: [[ABC, BAC], [ACB, CAB], [BCA, CBA]]
+  repetitions_per_order: 8
+  pilot_devices: 8
+  confirmatory_devices: 30
+  probe:
+    sensitive_band: "pilot_selected_and_frozen"
+    insensitive_band: "pilot_selected_and_frozen"
+
+randomization:
+  confirmatory_schedule: "balanced_randomized_interleaving_within_device"
+  forbid_order_blocks: true
+  record_run_index: true
+  record_block_id: true
+  derive_previous_trial_order_from_run_index: true
+  record_reset_elapsed_s: true
+  schedule_seed: "freeze_after_pilot_before_confirmatory"
+  max_abs_spearman_order_code_vs_run_index: 0.10
+
+reset_control:
+  reset_duration_s: "pilot_selected_and_frozen"
+  diagnostic: "previous-trial order and reset elapsed time are nuisance covariates in M0 and MH"
+  confirmation_requirement: >-
+    pilot must demonstrate terminal relaxation and control analyses compatible with the
+    frozen reset duration; previous-trial carryover may not be interpreted as current-history evidence.
+
+observable_state_gate:
+  abs_pre_voltage_v_max: 0.001
+  abs_pre_current_fraction_full_scale_max: 0.001
+  abs_pre_voltage_slope_v_per_s_max: 0.0002
+  abs_pre_temperature_delta_c_max: 0.2
+  pre_window_s: 1.0
+  trial_policy: "exclude_failed_trial_before_model_fit"
+  max_failed_trial_fraction_per_device: 0.10
+  max_device_exclusion_fraction: 0.10
+  max_order_pair_exclusion_rate_difference: 0.05
+
+observable_balance_gate:
+  description: >-
+    Accepted trials must not retain systematic order-pair differences large enough
+    to let order labels proxy for observable current state inside the absolute gate.
+  max_pair_mean_difference_fraction_of_gate:
+    pre_voltage_v: 0.25
+    pre_current_fraction_full_scale: 0.25
+    pre_voltage_slope_v_per_s: 0.25
+    pre_temperature_delta_c: 0.25
+
+outcome:
+  transform: "asinh"
+  scale_j: 0.001
+  scale_status: "provisional_for_pilot; freeze or replace before confirmatory"
+  primary: "probe_work_j"
+  secondary:
+    - probe_max_abs_current_a
+    - probe_end_voltage_v
+    - probe_relaxation_tau_s
+
+models:
+  current_state:
+    name: "M0"
+    continuous_features:
+      - pre_voltage_v
+      - pre_current_a
+      - pre_current_fraction_full_scale
+      - pre_voltage_slope_v_per_s
+      - pre_temperature_delta_c
+      - total_stimulus_abs
+      - conditioning_work_j
+      - run_index
+      - reset_elapsed_s
+    categorical_features:
+      - last_stimulus
+      - block_id
+      - previous_trial_order
+    fixed_nonlinear_map:
+      type: "physically_scaled_linear_hinge_spline"
+      knots_normalized_to_gate: [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+      spline_variables:
+        - pre_voltage_v
+        - pre_current_fraction_full_scale
+        - pre_voltage_slope_v_per_s
+        - pre_temperature_delta_c
+      interactions:
+        - "normalized_pre_voltage * normalized_pre_current_fraction"
+        - "normalized_pre_voltage * normalized_temperature"
+        - "normalized_pre_current_fraction * normalized_temperature"
+        - "normalized_pre_voltage * normalized_slope"
+        - "normalized_pre_current_fraction * normalized_slope"
+        - "normalized_slope * normalized_temperature"
+        - "pre_voltage_v * total_stimulus_abs"
+        - "pre_current_a * total_stimulus_abs"
+        - "pre_temperature_delta_c * conditioning_work_j"
+        - "square(run_index)"
+        - "square(reset_elapsed_s)"
+  history:
+    name: "MH"
+    base: "M0"
+    frozen_history_features:
+      - pos_A
+      - pos_B
+      - pos_C
+      - A_before_B
+      - B_before_A
+      - A_before_C
+      - C_before_A
+      - B_before_C
+      - C_before_B
+  strong_baselines:
+    names:
+      - output_only_DelayARX
+      - innovations_state_space
+      - prediction_error_method
+      - small_NARX_or_neural_SSM
+    external_prediction_schema: "data/phase3a/strong_baseline_predictions.csv"
+    required_before_confirmatory_lock: true
+
+inference:
+  outer_group_folds: 5
+  inner_group_folds: 4
+  ridge_alphas: [0.0, 1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1, 1.0, 10.0]
+  bootstrap_repetitions: 4000
+  confidence_level: 0.99
+  random_seed: 20260807
+  refit_bootstrap_required_for_confirmatory: true
+
+controls:
+  memoryless_control_label: "memoryless"
+  memory_device_label: "memory"
+  insensitive_probe_label: "insensitive"
+  sensitive_probe_label: "sensitive"
+
+energy_audit:
+  max_relative_residual: 0.01
+  validator_recomputes_numeric_residual: true
+
+gates:
+  G0: "finite values, unique trial ids, required schema, randomized schedule audit, previous-trial sequence integrity, no device leakage"
+  G1: "trial-level pre-state exclusion; device fail fraction <=10%; <=10% device exclusion; order-pair exclusion imbalance <=5%; within-gate observable balance"
+  G2: "99% CI upper of RMSE(MH)/RMSE(M0) < 0.90"
+  G3: "strong-baseline predictions present and 99% CI upper of RMSE(MH)/RMSE(strong baseline) < 1.05"
+  G4: "99% CI lower of RMSE(MH-shuffled)/RMSE(MH) > 1.10"
+  G5: "memoryless-control MH/M0 99% CI wholly inside [0.95, 1.05]"
+  G6: "insensitive-probe MH/M0 99% CI wholly inside [0.95, 1.05]"
+  G7: "absolute energy-balance residual <1% of input work"
+  G8: "independent validator reproduces hashes, exclusions, predictions, intervals, shuffle/control gates, and final Gate table"
+
+raw_sample_schema:
+  required_columns:
+    - device_id
+    - trial_id
+    - order
+    - replicate
+    - run_index
+    - block_id
+    - reset_elapsed_s
+    - control_type
+    - probe_band
+    - phase
+    - time_s
+    - voltage_v
+    - current_a
+    - temperature_c
+    - last_stimulus
+    - total_stimulus_abs
+    - conditioning_work_j
+    - energy_relative_residual
+
+freeze_sequence:
+  - null_calibration_1000
+  - adversarial_falsification_r1
+  - adversarial_falsification_r2
+  - adversarial_falsification_r3_reset_carryover
+  - hardened_analysis_regression_suite
+  - hardware_pilot_8_devices
+  - freeze_stimulus_probe_equivalence_transform_reset_and_schedule
+  - implement_and_audit_strong_baselines
+  - sha256_freeze_code_config_dependencies
+  - smoke_test
+  - confirmatory_30_new_devices
+  - independent_validation

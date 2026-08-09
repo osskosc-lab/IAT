@@ -1,0 +1,53 @@
+phase: "3A-HW-v1.0"
+status: "NOT_FROZEN"
+warning: >-
+  Do not begin the first hardware main trial until every REQUIRED field below is
+  populated and status is changed to FROZEN in a preregistration commit made before
+  outcome inspection. Synthetic CI data are not hardware evidence.
+
+hardware:
+  device_type: REQUIRED
+  device_count: 8
+  device_ids: [D01, D02, D03, D04, D05, D06, D07, D08]
+  circuit_description: REQUIRED
+  component_tolerances: REQUIRED
+
+stimulus_A:
+  waveform: REQUIRED
+  amplitude: REQUIRED
+  duration_s: REQUIRED
+stimulus_B:
+  waveform: REQUIRED
+  amplitude: REQUIRED
+  duration_s: REQUIRED
+common_probe:
+  waveform: REQUIRED
+  amplitude: REQUIRED
+  duration_s: REQUIRED
+
+matching:
+  T_match_s: REQUIRED
+  calibration_source: REQUIRED
+long_washout:
+  tau_max_s: REQUIRED
+  T_long_s: REQUIRED
+  requirement: "T_long_s >= 10 * tau_max_s"
+
+acquisition:
+  sampling_rate_hz: REQUIRED
+  voltage_range_v: REQUIRED
+  current_range_a: REQUIRED
+  adc_clipping_rule: REQUIRED
+  timestamp_tolerance_s: REQUIRED
+  temperature_sensor: REQUIRED
+  temperature_sampling_rate_hz: REQUIRED
+
+safety:
+  max_voltage_v: REQUIRED
+  max_current_a: REQUIRED
+  max_temperature_c: REQUIRED
+  automatic_stop_conditions: REQUIRED
+
+freeze:
+  frozen_by_commit: REQUIRED
+  frozen_at_utc: REQUIRED

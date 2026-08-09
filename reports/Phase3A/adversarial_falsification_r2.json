@@ -1,0 +1,42 @@
+{
+  "experiment": "IAT Phase 3A adversarial falsification r2",
+  "replicates": 50,
+  "seed_start": 0,
+  "scientific_boundary": "synthetic software falsification only; not hardware evidence",
+  "round2_sine_observable_confound": {
+    "r1": {
+      "median": 0.3504025544535392,
+      "q05": 0.33255839,
+      "q95": 0.36372288,
+      "fraction_point_ratio_below_0_90": 1.0
+    },
+    "r2": {
+      "median": 1.0011706351758045,
+      "q05": 0.9986645583743735,
+      "q95": 1.0054093063683782,
+      "fraction_point_ratio_below_0_90": 0.0
+    }
+  },
+  "round2_threshold_observable_confound": {
+    "r1_30_seed_diagnostic": {
+      "median": 0.9001968119077071,
+      "q05": 0.87677204,
+      "q95": 0.92330488,
+      "fraction_point_ratio_below_0_90": 0.43333333333333335
+    },
+    "r2": {
+      "median": 1.005748945254025,
+      "q05": 0.9968342804532495,
+      "q95": 1.020013198803662,
+      "fraction_point_ratio_below_0_90": 0.0
+    }
+  },
+  "positive_control_r2": {
+    "median": 0.801523113533146,
+    "q05": 0.7399083132022976,
+    "q95": 0.869226969296179,
+    "fraction_point_ratio_below_0_90": 0.96
+  },
+  "r2_pass": true,
+  "interpretation": "Round-1 quadratic hardening was not robust to more complex observable-state response functions. A fixed physically scaled hinge-spline baseline removed both tested false advantages while preserving sensitivity to a synthetic true order effect."
+}

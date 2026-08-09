@@ -1,0 +1,14 @@
+{
+  "experiment_id": "IAT-Phase3A-Null-Calibration",
+  "status": "PASS",
+  "scope": "software calibration only; not hardware evidence",
+  "replicates": 1000,
+  "seed_start": 330000,
+  "ratio_mean": 1.0010147986683302,
+  "ratio_median": 1.001014970304276,
+  "ratio_q005": 0.9980408250810958,
+  "ratio_q995": 1.0034470382751544,
+  "false_positive_rate_point_ratio_below_0_90": 0.0,
+  "calibration_pass": true,
+  "interpretation": "Under a generator with no order effect, the frozen history representation did not produce a material predictive advantage over the observable-current-state model."
+}

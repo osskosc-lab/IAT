@@ -1,0 +1,155 @@
+name: IAT Phase 3A-HW Preregistered Pilot
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/phase3a_hw_*"
+      - "config/phase3a_hw_*"
+      - "tests/test_phase3a_hw.py"
+      - "docs/phase3a_hw_*"
+      - "data/phase3a_hw/**"
+      - ".github/workflows/phase3a_hw.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/phase3a_hw_*"
+      - "config/phase3a_hw_*"
+      - "tests/test_phase3a_hw.py"
+      - "docs/phase3a_hw_*"
+      - "data/phase3a_hw/**"
+      - ".github/workflows/phase3a_hw.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase3a-hw-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  software-lock-and-falsification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Freeze and verify acquisition schedule
+        run: python src/phase3a_hw_schedule.py --out results/phase3a_hw/frozen_schedule.csv
+
+      - name: Unit tests
+        run: pytest -q tests/test_phase3a_hw.py
+
+      - name: Record preregistration hashes
+        run: |
+          sha256sum \
+            config/phase3a_hw_preregistration.yaml \
+            config/phase3a_hw_schedule.json \
+            config/phase3a_hw_hardware_manifest.yaml \
+            docs/phase3a_hw_preregistration.md \
+            src/phase3a_hw_schedule.py \
+            src/phase3a_hw_analyze.py \
+            src/phase3a_hw_validator.py \
+            src/phase3a_hw_synthetic.py \
+            tests/test_phase3a_hw.py | tee results/phase3a_hw/sha256_manifest.txt
+
+      - name: Synthetic null software regression
+        run: |
+          python src/phase3a_hw_synthetic.py --scenario null --out results/phase3a_hw_null/trials.csv
+          python src/phase3a_hw_analyze.py --data results/phase3a_hw_null/trials.csv --out results/phase3a_hw_null
+          python src/phase3a_hw_validator.py --data results/phase3a_hw_null/trials.csv --results results/phase3a_hw_null
+          python - <<'PY'
+          import json
+          r=json.load(open('results/phase3a_hw_null/analysis.json'))
+          assert r['gates']['G0'] and r['gates']['G1']
+          assert not r['gates']['G2'], r
+          print('NULL regression correctly does not support the primary history claim')
+          PY
+
+      - name: Synthetic current-order positive control
+        run: |
+          python src/phase3a_hw_synthetic.py --scenario positive --out results/phase3a_hw_positive/trials.csv
+          python src/phase3a_hw_analyze.py --data results/phase3a_hw_positive/trials.csv --out results/phase3a_hw_positive
+          python src/phase3a_hw_validator.py --data results/phase3a_hw_positive/trials.csv --results results/phase3a_hw_positive
+          python - <<'PY'
+          import json
+          r=json.load(open('results/phase3a_hw_positive/analysis.json'))
+          assert r['gates']['G0'] and r['gates']['G1']
+          assert r['gates']['G2'], r
+          assert r['gates']['G4'], r
+          assert r['gates']['G7'], r
+          print('Positive-control regression retains current-order sensitivity')
+          PY
+
+      - name: Previous-trial carryover attack
+        run: |
+          python src/phase3a_hw_synthetic.py --scenario carryover --out results/phase3a_hw_carryover/trials.csv
+          python src/phase3a_hw_analyze.py --data results/phase3a_hw_carryover/trials.csv --out results/phase3a_hw_carryover
+          python src/phase3a_hw_validator.py --data results/phase3a_hw_carryover/trials.csv --results results/phase3a_hw_carryover
+          python - <<'PY'
+          import json
+          r=json.load(open('results/phase3a_hw_carryover/analysis.json'))
+          assert not r['gates']['G5'], r
+          assert r['primary_ratio']['ci_high'] >= 0.90, r
+          print('Carryover attack is not misclassified as current-history support')
+          PY
+
+      - name: Verify empirical hardware freeze
+        if: ${{ hashFiles('data/phase3a_hw/trials.csv') != '' }}
+        run: |
+          python - <<'PY'
+          import yaml
+          m=yaml.safe_load(open('config/phase3a_hw_hardware_manifest.yaml'))
+          assert m.get('status') == 'FROZEN', 'hardware data present but hardware manifest is not FROZEN'
+          required=[]
+          def scan(x,p=''):
+            if isinstance(x,dict):
+              for k,v in x.items(): scan(v,p+'.'+k)
+            elif x == 'REQUIRED': required.append(p)
+          scan(m)
+          assert not required, f'unfilled manifest fields: {required}'
+          tau=float(m['long_washout']['tau_max_s']); tlong=float(m['long_washout']['T_long_s'])
+          assert tlong >= 10*tau, 'T_long must be at least 10*tau_max'
+          print('hardware manifest freeze verified')
+          PY
+
+      - name: Hardware dataset analysis when explicitly committed
+        if: ${{ hashFiles('data/phase3a_hw/trials.csv') != '' }}
+        run: |
+          python src/phase3a_hw_analyze.py --data data/phase3a_hw/trials.csv --out results/phase3a_hw_hardware
+          python src/phase3a_hw_validator.py --data data/phase3a_hw/trials.csv --results results/phase3a_hw_hardware
+
+      - name: Publish summaries
+        if: always()
+        run: |
+          for d in results/phase3a_hw_null results/phase3a_hw_positive results/phase3a_hw_carryover results/phase3a_hw_hardware; do
+            if [ -f "$d/summary.md" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              cat "$d/summary.md" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: IAT-Phase3A-HW-preregistration-software-audit
+          path: |
+            config/phase3a_hw_preregistration.yaml
+            config/phase3a_hw_schedule.json
+            config/phase3a_hw_hardware_manifest.yaml
+            results/phase3a_hw/
+            results/phase3a_hw_null/
+            results/phase3a_hw_positive/
+            results/phase3a_hw_carryover/
+            results/phase3a_hw_hardware/
+          if-no-files-found: warn
+          retention-days: 90
