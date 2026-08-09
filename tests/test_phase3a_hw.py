@@ -47,6 +47,31 @@ def test_preregistration_matches_frozen_schedule():
     assert spec["hardware_pilot"]["schedule_sha256"] == meta["generated_schedule_csv_sha256"]
 
 
+def test_analysis_config_contract_is_atomic():
+    """Catch partial config/API edits such as the 080b358 margin-key split.
+
+    The analyzer and independent validator both consume these frozen inference keys.
+    A preregistration edit must therefore keep the shared contract valid in the same
+    commit rather than relying on a later repair commit.
+    """
+    spec = yaml.safe_load((ROOT / "config" / "phase3a_hw_preregistration.yaml").read_text(encoding="utf-8"))
+    inference = spec["inference"]
+    required = {
+        "bootstrap_repetitions",
+        "confidence_level",
+        "bootstrap_seed",
+        "primary_support_threshold",
+        "equivalence_margin",
+        "order_shuffle_threshold",
+    }
+    assert required <= set(inference)
+    assert int(inference["bootstrap_repetitions"]) == 20000
+    assert float(inference["confidence_level"]) == 0.99
+    assert float(inference["primary_support_threshold"]) == 0.90
+    assert float(inference["equivalence_margin"]) == 0.10
+    assert float(inference["order_shuffle_threshold"]) == 1.10
+
+
 def test_synthetic_generator_is_observable_balanced_and_long_washout_has_no_current_effect():
     rows = generate(str(ROOT / "config" / "phase3a_hw_schedule.json"), "positive", 1234)
     assert len(rows) == 1152
