@@ -53,6 +53,8 @@ jobs:
           sha256sum \
             config/phase3a_hw_preregistration.yaml \
             config/phase3a_hw_schedule.json \
+            config/phase3a_hw_hardware_manifest.yaml \
+            docs/phase3a_hw_preregistration.md \
             src/phase3a_hw_schedule.py \
             src/phase3a_hw_analyze.py \
             src/phase3a_hw_validator.py \
@@ -100,6 +102,25 @@ jobs:
           print('Carryover attack is not misclassified as current-history support')
           PY
 
+      - name: Verify empirical hardware freeze
+        if: ${{ hashFiles('data/phase3a_hw/trials.csv') != '' }}
+        run: |
+          python - <<'PY'
+          import yaml
+          m=yaml.safe_load(open('config/phase3a_hw_hardware_manifest.yaml'))
+          assert m.get('status') == 'FROZEN', 'hardware data present but hardware manifest is not FROZEN'
+          required=[]
+          def scan(x,p=''):
+            if isinstance(x,dict):
+              for k,v in x.items(): scan(v,p+'.'+k)
+            elif x == 'REQUIRED': required.append(p)
+          scan(m)
+          assert not required, f'unfilled manifest fields: {required}'
+          tau=float(m['long_washout']['tau_max_s']); tlong=float(m['long_washout']['T_long_s'])
+          assert tlong >= 10*tau, 'T_long must be at least 10*tau_max'
+          print('hardware manifest freeze verified')
+          PY
+
       - name: Hardware dataset analysis when explicitly committed
         if: ${{ hashFiles('data/phase3a_hw/trials.csv') != '' }}
         run: |
@@ -124,6 +145,7 @@ jobs:
           path: |
             config/phase3a_hw_preregistration.yaml
             config/phase3a_hw_schedule.json
+            config/phase3a_hw_hardware_manifest.yaml
             results/phase3a_hw/
             results/phase3a_hw_null/
             results/phase3a_hw_positive/
