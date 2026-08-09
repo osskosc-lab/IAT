@@ -47,6 +47,12 @@ over the frozen common-probe window. Secondary outcomes may be stored, but the p
 
 The device is the resampling unit. The frozen bootstrap uses 20,000 device resamples and a 99% interval. Primary support requires the 99% upper bound of `RMSE(MH)/RMSE(M0)` to be below `0.90`.
 
+## Pre-hardware software calibration repair
+
+Before any empirical hardware outcome existed, the first complete synthetic software-audit run exposed one precision problem in the negative controls. With the fixed 24 long-washout trials per device, a no-current-order generator gave a long-washout `MH/M0` 99% interval of approximately `[0.989, 1.062]`. The original `[0.95,1.05]` equivalence interval was therefore too narrow for the frozen pilot sample size, even under the software null.
+
+The negative-control equivalence band was repaired **before hardware parameter freeze and before any empirical outcome existed** to `[0.90,1.10]`, matching the 10% minimum-effect scale of the primary support rule. The previous-trial carryover attack used in CI remains far outside this interval and must still fail G5. This repair is recorded as `r1-negative-control-margin` in the YAML preregistration; no empirical data may be used to revise it further.
+
 ## Gates
 
 - **G0 Integrity:** exact frozen schedule, exact trial/device counts, unique IDs, finite values, per-block balance, and run-length rule.
@@ -54,8 +60,8 @@ The device is the resampling unit. The frozen bootstrap uses 20,000 device resam
 - **G2 Primary history value:** 99% upper bound of `MH/M0 < 0.90`.
 - **G3 Cross-device consistency:** median device ratio `<0.90` and at least 7/8 device ratios `<1`.
 - **G4 Temporal-order falsification:** 99% lower bound of conditionally shuffled/ordered MH RMSE `>1.10`.
-- **G5 Previous-trial carryover:** previous-trial/reset-only diagnostic ratio 99% CI wholly inside `[0.95,1.05]`.
-- **G6 Long-washout null:** long-washout `MH/M0` 99% CI wholly inside `[0.95,1.05]`.
+- **G5 Previous-trial carryover:** previous-trial/reset-only diagnostic ratio 99% CI wholly inside `[0.90,1.10]`.
+- **G6 Long-washout null:** long-washout `MH/M0` 99% CI wholly inside `[0.90,1.10]`.
 - **G7 Observable-confound hardening:** 99% upper bound of `MH*/M0* <0.90`.
 
 `PILOT_SUPPORT` is allowed only if G0-G7 all pass. Otherwise the first failing scientific explanation is retained as the final classification: implementation failure, current-state confound, primary null, device-specific result, order-mechanism failure, carryover artifact, hardware-null failure, or observable-model explanation.
