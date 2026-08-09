@@ -1,0 +1,165 @@
+phase: "3A-HW-v1.0"
+name: "Observable-Only History-Conditioned Hardware Pilot"
+status: "PILOT_READY"
+confirmatory_locked: false
+scientific_boundary: >-
+  Tests whether current-trial stimulus order adds predictive information about a
+  common-probe terminal response after conditioning on observable pre-probe state,
+  acquisition block, previous-trial order, and reset elapsed time. A PASS is hardware
+  evidence for this bounded predictive claim only; it is not evidence for a new energy,
+  a quantum effect, or a new law of nature.
+
+central_hypothesis:
+  H0: "P(Y_probe | Z_pre, H_current) = P(Y_probe | Z_pre)"
+  H1: "P(Y_probe | Z_pre, H_current) != P(Y_probe | Z_pre)"
+  latent_state_allowed: false
+
+hardware_pilot:
+  devices: 8
+  main_trials_per_device: 120
+  main_trials_per_order: 60
+  long_washout_trials_per_device: 24
+  total_trials: 1152
+  orders: [AB, BA]
+  blocks_per_device: 6
+  main_trials_per_block: 20
+  per_block_balance: {AB: 10, BA: 10}
+  max_order_run_length: 3
+  schedule_seed: 20260809
+  schedule_path: "config/phase3a_hw_schedule.csv"
+  schedule_sha256: "bd4c5986f4dbe708e95addb198867aeeb661f5d44cd4ac0a58288673b8192f54"
+
+intervention:
+  rule: "A and B content, duration, and total dose are identical across conditions; order only differs"
+  AB: "A -> B -> matching interval -> common probe"
+  BA: "B -> A -> matching interval -> common probe"
+  matching_interval_rule: >-
+    One common T_match must be frozen from calibration before main outcomes are inspected;
+    order-specific waiting times are forbidden.
+  common_probe_rule: "identical waveform, duration, amplitude, acquisition settings, and analysis window"
+
+outcome:
+  primary: "probe_work_j"
+  definition: "integral_0^T_probe voltage_v * current_a dt"
+  transform: "identity"
+  secondary: [probe_peak_abs_current_a, probe_end_voltage_v]
+  post_hoc_primary_switch_forbidden: true
+
+required_trial_columns:
+  - device_id
+  - trial_id
+  - trial_class
+  - block_id
+  - run_index
+  - order
+  - previous_trial_order
+  - reset_elapsed_s
+  - pre_voltage_v
+  - pre_current_a
+  - pre_current_fraction_full_scale
+  - pre_voltage_slope_v_per_s
+  - pre_temperature_delta_c
+  - probe_work_j
+
+models:
+  M0:
+    description: "observable-current-state plus acquisition/carryover nuisance model"
+    current_order_allowed: false
+    nuisance: [block_id, run_index, previous_trial_order, reset_elapsed_s]
+    continuous:
+      - pre_voltage_v
+      - pre_current_a
+      - pre_current_fraction_full_scale
+      - pre_voltage_slope_v_per_s
+      - pre_temperature_delta_c
+    frozen_representation: "r3-style standardized hinge-spline map plus fixed low-order interactions"
+  MH:
+    base: "M0"
+    adds_only: [current_trial_order]
+  M0_star:
+    description: "super-flexible observable-only falsification baseline"
+    adds: "cubic terms and frozen pairwise interactions of observable pre-state"
+  MH_star:
+    base: "M0_star"
+    adds_only: [current_trial_order]
+  ridge_alpha: 1.0e-6
+  evaluation: "leave-one-device-out"
+
+inference:
+  primary_metric: "RMSE(MH) / RMSE(M0) on held-out-device predictions"
+  bootstrap_unit: "device"
+  bootstrap_repetitions: 20000
+  confidence_level: 0.99
+  bootstrap_seed: 2026080901
+  primary_support_threshold: 0.90
+  equivalence_margin: 0.05
+  order_shuffle_threshold: 1.10
+
+current_state_equivalence:
+  variables:
+    - pre_voltage_v
+    - pre_current_fraction_full_scale
+    - pre_voltage_slope_v_per_s
+    - pre_temperature_delta_c
+  standardized_margin: 0.10
+  rule: "for every variable, the full 99% device-bootstrap CI for standardized AB-BA difference must lie in [-0.10, +0.10]"
+
+long_washout:
+  trials_per_device: 24
+  minimum_duration_rule: "T_long >= 10 * tau_max from independent calibration"
+  interpretation: "negative control; not a mechanism claim"
+
+formal_gates:
+  G0_integrity: >-
+    exact frozen schedule match; 8 devices; 1152 unique trials; 120 main and 24 long-washout
+    trials per device; 60 AB/60 BA main trials; 10/10 order balance per main block;
+    maximum main-order run length <=3; finite required values.
+  G1_current_state_equivalence: "all four observable-state 99% CIs lie wholly inside [-0.10,+0.10]"
+  G2_primary_history_value: "99% CI upper of RMSE(MH)/RMSE(M0) < 0.90"
+  G3_cross_device_consistency: "median device RMSE ratio <0.90 and at least 7/8 device ratios <1"
+  G4_temporal_order_falsification: "99% CI lower of RMSE(MH_shuffled)/RMSE(MH_ordered) >1.10"
+  G5_previous_trial_carryover: "99% CI of RMSE(Mprev)/RMSE(Mbase_no_prev) wholly inside [0.95,1.05]"
+  G6_long_washout_null: "99% CI of long-washout MH/M0 wholly inside [0.95,1.05]"
+  G7_observable_confound_hardening: "99% CI upper of RMSE(MH_star)/RMSE(M0_star) <0.90"
+
+final_classification_priority:
+  - "IMPLEMENTATION_FAILURE if G0 fails"
+  - "CURRENT_STATE_CONFOUND if G1 fails"
+  - "PRIMARY_NULL if G2 fails"
+  - "DEVICE_SPECIFIC if G3 fails"
+  - "ORDER_MECHANISM_FALSIFIED if G4 fails"
+  - "CARRYOVER_ARTIFACT if G5 fails"
+  - "HARDWARE_NULL_FAILURE if G6 fails"
+  - "OBSERVABLE_MODEL_EXPLANATION if G7 fails"
+  - "PILOT_SUPPORT only if G0-G7 all PASS"
+
+stopping_rule:
+  fixed_n: true
+  stop_after: "8 devices x 144 trials = 1152 trials"
+  interim_primary_analysis_forbidden: true
+  allowed_early_stop: [safety_problem, device_damage, acquisition_failure, data_storage_failure]
+  outcome_dependent_extension_forbidden: true
+  after_outcome_unblinding_any_protocol_change_requires_new_version_and_new_data: true
+
+freeze_requirements_before_first_hardware_trial:
+  - completed_hardware_manifest
+  - A_waveform
+  - B_waveform
+  - common_probe_waveform
+  - T_match
+  - T_long
+  - measurement_ranges
+  - sampling_rate
+  - ADC_clipping_rule
+  - timestamp_tolerance
+  - temperature_sensor_definition
+
+analysis_artifacts:
+  - analysis.json
+  - predictions_primary.csv
+  - predictions_previous.csv
+  - predictions_long_washout.csv
+  - predictions_superflex.csv
+  - equivalence_device_effects.csv
+  - validator.json
+  - sha256_manifest.txt
