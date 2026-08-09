@@ -5,17 +5,21 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/**"
-      - "config/**"
-      - "tests/**"
+      - "src/r2a_*"
+      - "src/check_freeze.py"
+      - "config/r2a_*"
+      - "config/frozen_manifest.json"
+      - "tests/test_r2a.py"
       - "requirements.txt"
       - ".github/workflows/phase2c-r2a.yml"
   pull_request:
     branches: [main]
     paths:
-      - "src/**"
-      - "config/**"
-      - "tests/**"
+      - "src/r2a_*"
+      - "src/check_freeze.py"
+      - "config/r2a_*"
+      - "config/frozen_manifest.json"
+      - "tests/test_r2a.py"
       - "requirements.txt"
       - ".github/workflows/phase2c-r2a.yml"
 
@@ -52,8 +56,11 @@ jobs:
           sha256sum config/r2a_config.yaml config/r2a_confirmatory_seeds.json requirements.txt src/check_freeze.py src/r2a_experiment.py src/r2a_validator.py tests/test_r2a.py | tee actual_hashes.txt
           python src/check_freeze.py
 
-      - name: Unit tests
-        run: pytest -q
+      # Scientific confirmatory CI is deliberately phase-scoped. Repository-wide
+      # regressions are owned by the phase-specific workflows so an unrelated
+      # Phase 3A test/API failure cannot prevent the frozen Phase 2C experiment.
+      - name: Frozen Phase 2C unit tests
+        run: pytest -q tests/test_r2a.py
 
       - name: Smoke experiment
         run: python src/r2a_experiment.py --mode smoke
