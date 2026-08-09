@@ -26,8 +26,8 @@ hardware_pilot:
   per_block_balance: {AB: 10, BA: 10}
   max_order_run_length: 3
   schedule_seed: 20260809
-  schedule_path: "config/phase3a_hw_schedule.csv"
-  schedule_sha256: "bd4c5986f4dbe708e95addb198867aeeb661f5d44cd4ac0a58288673b8192f54"
+  schedule_path: "config/phase3a_hw_schedule.json"
+  schedule_sha256: "7a4e87bac091be0e7ca62f226afa595499a3e3c15134fbcb9561e766227932a3"
 
 intervention:
   rule: "A and B content, duration, and total dose are identical across conditions; order only differs"
