@@ -2,6 +2,13 @@ phase: "3A-HW-v1.0"
 name: "Observable-Only History-Conditioned Hardware Pilot"
 status: "PILOT_READY"
 confirmatory_locked: false
+software_calibration_revision: "r1-long-washout-margin"
+software_calibration_note: >-
+  Before any empirical hardware outcome existed, the synthetic no-effect regression showed
+  that 24 long-washout trials/device produced a 99% MH/M0 interval extending to about 1.06.
+  The original +/-5% equivalence band was therefore underpowered for this control. G6 was
+  repaired to the same +/-10% smallest-effect scale used by the primary 0.90 support threshold.
+  Previous-trial carryover G5 remains at +/-5%.
 scientific_boundary: >-
   Tests whether current-trial stimulus order adds predictive information about a
   common-probe terminal response after conditioning on observable pre-probe state,
@@ -92,7 +99,8 @@ inference:
   confidence_level: 0.99
   bootstrap_seed: 2026080901
   primary_support_threshold: 0.90
-  equivalence_margin: 0.05
+  previous_carryover_equivalence_margin: 0.05
+  long_washout_equivalence_margin: 0.10
   order_shuffle_threshold: 1.10
 
 current_state_equivalence:
@@ -107,7 +115,7 @@ current_state_equivalence:
 long_washout:
   trials_per_device: 24
   minimum_duration_rule: "T_long >= 10 * tau_max from independent calibration"
-  interpretation: "negative control; not a mechanism claim"
+  interpretation: "negative control; 99% MH/M0 interval must lie inside [0.90,1.10]"
 
 formal_gates:
   G0_integrity: >-
@@ -119,7 +127,7 @@ formal_gates:
   G3_cross_device_consistency: "median device RMSE ratio <0.90 and at least 7/8 device ratios <1"
   G4_temporal_order_falsification: "99% CI lower of RMSE(MH_shuffled)/RMSE(MH_ordered) >1.10"
   G5_previous_trial_carryover: "99% CI of RMSE(Mprev)/RMSE(Mbase_no_prev) wholly inside [0.95,1.05]"
-  G6_long_washout_null: "99% CI of long-washout MH/M0 wholly inside [0.95,1.05]"
+  G6_long_washout_null: "99% CI of long-washout MH/M0 wholly inside [0.90,1.10]"
   G7_observable_confound_hardening: "99% CI upper of RMSE(MH_star)/RMSE(M0_star) <0.90"
 
 final_classification_priority:
